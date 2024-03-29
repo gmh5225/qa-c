@@ -4,8 +4,8 @@
 #include <string>
 
 #include "allocator.hpp"
-#include "codegen.hpp"
 #include "assem.hpp"
+#include "codegen.hpp"
 #include "lexer.hpp"
 #include "parser.hpp"
 #include "st.hpp"

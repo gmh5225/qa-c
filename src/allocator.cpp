@@ -1,11 +1,11 @@
 #include "allocator.hpp"
+#include <map>
+#include <optional>
 #include <set>
 #include <stdexcept>
-#include <map>
-#include <variant>
 #include <unordered_map>
+#include <variant>
 #include <vector>
-#include <optional>
 
 namespace allocator {
 using reg = std::variant<as::Temp, as::HardcodedRegister>;
@@ -13,7 +13,10 @@ struct Ctx {
   public:
     std::set<int> usedRegs = {};
     std::map<reg, std::string> mapping = {};
-    std::vector<std::string> general_regs = {"ax", "bx", "cx", "dx", "si", "di", "8", "9", "10", "11", "12", "13", "14", "15"};
+    std::vector<std::string> general_regs = {"ax", "bx", "cx", "dx", "si",
+        "di", "8",  "9",  "10", "11",
+        "12", "13", "14", "15"
+    };
 
     std::string getReg() {
         int i = 0;
@@ -38,7 +41,6 @@ struct Ctx {
         }
         throw std::runtime_error("Register not found");
     }
-
 };
 
 struct FirstLastUse {
@@ -91,8 +93,10 @@ struct FirstLastUse {
             }
         }
         if (auto dest = std::get_if<as::Temp>(&operation.dest)) {
-            if (operation.op != as::OpCode::Mov) continue;
-            // if not found in newFirstused, (ie first used as a dest) then we need to remap
+            if (operation.op != as::OpCode::Mov)
+                continue;
+            // if not found in newFirstused, (ie first used as a dest) then we need to
+            // remap
             if (newFirstUsed.find(*dest) == newFirstUsed.end()) {
                 if (src.has_value()) {
                     // if src is in remapped registers, then we need to remap it
@@ -163,7 +167,8 @@ struct FirstLastUse {
                 if (std::holds_alternative<as::Temp>(*dest)) {
                     ctx.mapping[*__dest] = ctx.getReg();
                 } else {
-                    ctx.mapping[*__dest] = std::get<as::HardcodedRegister>(*dest).name.substr(1);
+                    ctx.mapping[*__dest] =
+                        std::get<as::HardcodedRegister>(*dest).name.substr(1);
                 }
             }
             const auto register_string = ctx.mapping.at(*__dest);
@@ -179,7 +184,8 @@ struct FirstLastUse {
     return newFrame;
 }
 
-[[nodiscard]] std::vector<as::Frame> rewrite(const std::vector<as::Frame> &frames) {
+[[nodiscard]] std::vector<as::Frame>
+rewrite(const std::vector<as::Frame> &frames) {
     std::vector<as::Frame> newFrames;
     for (const auto &frame : frames) {
         Ctx ctx = Ctx{};

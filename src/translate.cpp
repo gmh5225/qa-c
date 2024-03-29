@@ -67,7 +67,8 @@ translate(const std::unique_ptr<st::PrimaryExpression> &expr, Ctx &ctx) {
         Ctx &ctx) {
     const auto &e = expr.expr;
     if (std::holds_alternative<std::unique_ptr<st::PrimaryExpression>>(e)) {
-        const auto &pe = std::get<std::unique_ptr<st::PrimaryExpression>>(std::move(e));
+        const auto &pe =
+            std::get<std::unique_ptr<st::PrimaryExpression>>(std::move(e));
         return translate(pe, ctx);
     }
     throw std::runtime_error("translate(const st::Expression &expr, Ctx &ctx)");
@@ -89,7 +90,8 @@ translate(const std::unique_ptr<st::ExpressionStatement> &stmt, Ctx &ctx) {
 // declaration
 [[nodiscard]] static std::unique_ptr<ast::Node>
 translate(const st::Declaration &decl, Ctx &ctx) {
-    const auto iden = decl.initDeclarator.value().declarator.directDeclarator.VariableIden();
+    const auto iden =
+        decl.initDeclarator.value().declarator.directDeclarator.VariableIden();
     const auto finalType = toDataType(decl.declarationSpecifiers);
     auto declarator = decl.initDeclarator.value().declarator;
     if (declarator.pointer) {

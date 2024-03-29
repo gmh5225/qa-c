@@ -1,8 +1,8 @@
-#include <stdexcept>
-#include <iostream>
-#include <map>
 #include "assem.hpp"
 #include "system.hpp"
+#include <iostream>
+#include <map>
+#include <stdexcept>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-parameter"
@@ -16,15 +16,16 @@ struct Ctx {
     std::map<std::string, StackLocation> variableLocation;
 
     Temp newTemp(int size) {
-        assert (size == 4 || size == 8);
+        assert(size == 4 || size == 8);
         return Temp{counter++, size};
     }
 
-    StackLocation newVar( ast::Node *node) {
+    StackLocation newVar(ast::Node *node) {
         std::cout << "newVar: " << node->variableName << std::endl;
         offset += node->variableType.size;
-        assert (node->variableType.size == 4 || node->variableType.size == 8);
-        variableLocation[node->variableName] = StackLocation{offset, node->variableType.size};
+        assert(node->variableType.size == 4 || node->variableType.size == 8);
+        variableLocation[node->variableName] =
+            StackLocation{offset, node->variableType.size};
         variableType[node->variableName] = node->variableType;
         return StackLocation{offset, node->variableType.size};
     }
@@ -85,21 +86,26 @@ std::ostream &operator<<(std::ostream &os, const Operation &ins) {
     } else if (std::holds_alternative<StackLocation>(loc)) {
         auto size = std::get<StackLocation>(loc).size;
         if (size == 4) {
-            return "dword [rbp - " + std::to_string(std::get<StackLocation>(loc).offset) + "]";
+            return "dword [rbp - " +
+                   std::to_string(std::get<StackLocation>(loc).offset) + "]";
         } else if (size == 8) {
-            return "qword [rbp - " + std::to_string(std::get<StackLocation>(loc).offset) + "]";
+            return "qword [rbp - " +
+                   std::to_string(std::get<StackLocation>(loc).offset) + "]";
         }
     }
     throw std::runtime_error("toAsm not implemented");
 }
 
 Operation LoadI(Location dst, int value) {
-    return Operation{.op = OpCode::LoadI, .dest = dst, .src = std::monostate{}, .value = value};
+    return Operation{.op = OpCode::LoadI,
+                     .dest = dst,
+                     .src = std::monostate{},
+                     .value = value};
 }
 
 [[nodiscard]] int SizeOf(const Location loc) {
     if (std::holds_alternative<Temp>(loc)) {
-        auto res =  std::get<Temp>(loc).size;
+        auto res = std::get<Temp>(loc).size;
         assert(res == 4 || res == 8);
         return res;
     } else if (std::holds_alternative<HardcodedRegister>(loc)) {
@@ -138,7 +144,7 @@ Location MunchExpr(std::vector<Instruction> &ins,
     }
     case ast::NodeType::Var: {
         auto loc = ctx.getVar(node.get());
-        assert (loc.size == 4 || loc.size == 8);
+        assert(loc.size == 4 || loc.size == 8);
         auto temp = ctx.newTemp(loc.size);
         ins.push_back(Mov(temp, loc));
         return temp;

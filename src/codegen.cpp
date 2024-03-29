@@ -25,7 +25,8 @@ void generateASMForInstruction(const as::Instruction &is, Ctx &ctx) {
             ctx.AddInstruction("mov " + dest + ", " + src);
         } else if (op.op == as::OpCode::LoadI) {
             auto dest = as::toAsm(op.dest);
-            ctx.AddInstruction("mov " + dest + ", " + std::to_string(op.value.value()));
+            ctx.AddInstruction("mov " + dest + ", " +
+                               std::to_string(op.value.value()));
         }
     } else if (std::holds_alternative<as::Label>(is)) {
         const auto &label = std::get<as::Label>(is);
@@ -41,12 +42,14 @@ void generateASMForFrame(const as::Frame &frame, Ctx &ctx) {
     ctx.AddInstructionNoIndent(frame.name + ":");
     ctx.AddInstruction("push rbp");
     ctx.AddInstruction("mov rbp, rsp");
-    // ctx.AddInstruction("sub rsp, " + std::to_string(sixteenByteAlign(frame.size)));
+    // ctx.AddInstruction("sub rsp, " +
+    // std::to_string(sixteenByteAlign(frame.size)));
     for (const auto &is : frame.instructions) {
         try {
             generateASMForInstruction(is, ctx);
         } catch (const std::exception &e) {
-            std::cerr << "Error generating ASM for operation: " << e.what() << std::endl;
+            std::cerr << "Error generating ASM for operation: " << e.what()
+                      << std::endl;
             throw;
         }
     }
@@ -73,4 +76,4 @@ void generateASMForFrame(const as::Frame &frame, Ctx &ctx) {
     ctx.AddInstruction("syscall");
     return ctx.Code;
 }
-}
+} // namespace codegen

@@ -1,13 +1,13 @@
 #pragma once
 
+#include "ast.hpp"
 #include <cassert>
+#include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <variant>
-#include <iostream>
 #include <vector>
-#include <optional>
-#include "ast.hpp"
 
 namespace as {
 
@@ -50,11 +50,13 @@ struct StackLocation {
 inline bool operator<(const as::Temp &lhs, const as::Temp &rhs) {
     return lhs.id < rhs.id;
 }
-inline bool operator<(const as::HardcodedRegister &lhs, const as::HardcodedRegister &rhs) {
+inline bool operator<(const as::HardcodedRegister &lhs,
+                      const as::HardcodedRegister &rhs) {
     return lhs.name < rhs.name;
 }
 
-using Location = std::variant<std::monostate, Temp, HardcodedRegister, StackLocation>;
+using Location =
+    std::variant<std::monostate, Temp, HardcodedRegister, StackLocation>;
 
 [[nodiscard]] std::string toAsm(const Location &loc);
 
