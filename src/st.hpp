@@ -127,6 +127,13 @@ class DirectDeclarator {
   public:
     DeclaratorKind kind;
     std::variant<VariableDirectDeclarator, FunctionDirectDeclarator> declarator;
+
+    std::string VariableIden() const {
+        if (kind == DeclaratorKind::VARIABLE) {
+            return std::get<VariableDirectDeclarator>(declarator).name;
+        }
+        throw std::runtime_error("Not a variable");
+    }
 };
 
 inline std::ostream &operator<<(std::ostream &os,
@@ -194,7 +201,7 @@ inline std::ostream &operator<<(std::ostream &os, const InitDeclarator &node) {
 class Declaration {
   public:
     std::vector<DeclarationSpecifier> declarationSpecifiers;
-    std::optional<InitDeclarator> initalizer;
+    std::optional<InitDeclarator> initDeclarator;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Declaration &node) {
@@ -202,9 +209,9 @@ inline std::ostream &operator<<(std::ostream &os, const Declaration &node) {
     for (auto &v : node.declarationSpecifiers) {
         os << v << ",";
     }
-    os << "], initalizer=";
-    if (node.initalizer) {
-        os << *node.initalizer;
+    os << "], initDeclarator=";
+    if (node.initDeclarator) {
+        os << *node.initDeclarator;
     } else {
         os << "nullptr";
     }
@@ -353,9 +360,9 @@ inline std::ostream &operator<<(std::ostream &os,
         for (auto &v : decl.declarationSpecifiers) {
             os << v << ",";
         }
-        os << "], initalizer=";
-        if (decl.initalizer) {
-            os << *decl.initalizer;
+        os << "], initDeclarator=";
+        if (decl.initDeclarator) {
+            os << *decl.initDeclarator;
         } else {
             os << "nullptr";
         }

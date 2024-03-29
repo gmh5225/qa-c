@@ -4,7 +4,7 @@
 #include <vector>
 
 namespace ast {
-enum class NodeType { ConstInt, Frame, Move, Return, Temp, Seq };
+enum class NodeType { ConstInt, Frame, Move, Temp, Seq, Jump, Return, Var };
 
 struct DataType {
     std::string name;
@@ -38,6 +38,13 @@ class Node {
 
     // UNARY
     std::unique_ptr<Node> expr;
+
+    // jump
+    std::string jumpToLabelValue;
+
+    // variable
+    std::string variableValue;
+    ast::DataType variableType;
 };
 
 std::unique_ptr<Node> makeConstInt(int value);
@@ -85,6 +92,12 @@ inline std::ostream &operator<<(std::ostream &os, const Node &node) {
             os << *n << ", ";
         }
         os << ")";
+        break;
+    case NodeType::Jump:
+        os << "Jump(" << node.jumpToLabelValue << ")";
+        break;
+    case NodeType::Var:
+        os << "Var(variableName=" << node.variableName << ")";
         break;
     }
     return os;

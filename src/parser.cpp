@@ -218,7 +218,7 @@ void consume(TokType typ) {
     // hack obvs
     auto initDeclarator = parseInitDeclarator();
     return st::Declaration{.declarationSpecifiers = declspecs,
-                           .initalizer = std::move(initDeclarator)};
+                           .initDeclarator = std::move(initDeclarator)};
 }
 
 [[nodiscard]] std::unique_ptr<st::FuncDef> parseFunctionDefinition() {

@@ -66,31 +66,37 @@ char advance() {
     case '*':
         return Token{TokType::TOKEN_STAR, "*"};
     case '!':
-        if (peekNext() == '=') {
+        if (peek() == '=') {
             advance();
             return Token{TokType::TOKEN_BANG_EQUAL, "!="};
         }
         return Token{TokType::TOKEN_BANG, "!"};
     case '=':
-        if (peekNext() == '=') {
+        if (peek() == '=') {
             advance();
             return Token{TokType::TOKEN_EQUAL_EQUAL, "=="};
         }
         return Token{TokType::TOKEN_EQUAL, "="};
     case '<':
-        if (peekNext() == '=') {
+        if (peek() == '=') {
             advance();
             return Token{TokType::TOKEN_LESS_EQUAL, "<="};
         }
         return Token{TokType::TOKEN_LESS, "<"};
     case '>':
-        if (peekNext() == '=') {
+        if (peek() == '=') {
             advance();
             return Token{TokType::TOKEN_GREATER_EQUAL, ">="};
         }
         return Token{TokType::TOKEN_GREATER, ">"};
     case '/':
-        return Token{TokType::TOKEN_SLASH, "/"};
+        if (peek() == '/') {
+            while (peek() != '\n' && !isAtEnd()) {
+                advance();
+            }
+        } else {
+            return Token{TokType::TOKEN_SLASH, "/"};
+        }
     case ' ':
     case '\r':
     case '\t':

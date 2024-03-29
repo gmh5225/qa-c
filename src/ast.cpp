@@ -25,6 +25,13 @@ std::unique_ptr<Node> makeNewFunction(std::string functionName,
     return node;
 }
 
+std::unique_ptr<Node> makeJump(std::string label) {
+    auto node = std::make_unique<Node>();
+    node->type = NodeType::Jump;
+    node->jumpToLabelValue = label;
+    return node;
+}
+
 std::unique_ptr<Node> makeNewReturn(std::unique_ptr<ast::Node> expr) {
     auto node = std::make_unique<Node>();
     node->type = NodeType::Return;
