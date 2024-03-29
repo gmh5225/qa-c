@@ -32,11 +32,22 @@ class PrimaryExpression {
     std::string idenValue;
 };
 
+class Expression;
+
+class AssignmentExpression {
+  public:
+    AssignmentExpression(std::unique_ptr<PrimaryExpression> lhs, std::unique_ptr<PrimaryExpression> rhs);
+
+    std::unique_ptr<PrimaryExpression> lhs;
+    std::unique_ptr<PrimaryExpression> rhs;
+};
+
 class Expression {
   public:
     Expression(std::unique_ptr<PrimaryExpression> expr) : expr(std::move(expr)) {}
+    Expression(std::unique_ptr<AssignmentExpression> expr) : expr(std::move(expr)) {}
 
-    std::variant<std::unique_ptr<PrimaryExpression>> expr;
+    std::variant<std::unique_ptr<PrimaryExpression>, std::unique_ptr<AssignmentExpression>> expr;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Expression &node) {

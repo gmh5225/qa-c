@@ -21,7 +21,6 @@ struct Ctx {
     }
 
     StackLocation newVar(ast::Node *node) {
-        std::cout << "newVar: " << node->variableName << std::endl;
         offset += node->variableType.size;
         assert(node->variableType.size == 4 || node->variableType.size == 8);
         variableLocation[node->variableName] =
@@ -36,6 +35,15 @@ struct Ctx {
         }
         return variableLocation[node->variableName];
     }
+
+    StackLocation __GetOrDefineVar(ast::Node *node) {
+        try {
+            return getVar(node);
+        } catch (const std::exception &e) {
+            return newVar(node);
+        }
+    }
+
 };
 
 std::ostream &operator<<(std::ostream &os, const Location &loc) {
@@ -160,12 +168,11 @@ void MunchStmt(std::vector<Instruction> &ins,
                const std::unique_ptr<ast::Node> &node, Ctx &ctx) {
     switch (node->type) {
     case ast::NodeType::Move: {
-        auto dst = ctx.newVar(node->left.get());
+        auto dst = ctx.__GetOrDefineVar(node->left.get());
         auto src = MunchExpr(ins, node->right, ctx);
         ins.push_back(Mov(dst, src));
         return;
     }
-    return;
     case ast::NodeType::Return: {
         std::unique_ptr<ast::Node> expr = std::move(node->expr);
         auto src = MunchExpr(ins, expr, ctx);
@@ -173,7 +180,6 @@ void MunchStmt(std::vector<Instruction> &ins,
         ins.push_back(Mov(dst, src));
         return;
     }
-    break;
     case ast::NodeType::Jump:
         break;
     default:

@@ -156,9 +156,44 @@ void consume(TokType typ) {
     throw std::runtime_error("Expected primary expression");
 }
 
+[[nodiscard]] bool __EqualsSignLookahead() {
+    unsigned long i = current;
+    while (i < g_tokens.size()) {
+        if (g_tokens[i].type == TokType::TOKEN_EQUAL) {
+            return true;
+        }
+        if (g_tokens[i].type == TokType::TOKEN_SEMICOLON) {
+            return false;
+        }
+        if (g_tokens[i].type == TokType::TOKEN_LEFT_BRACE) {
+            return false;
+        }
+        if (g_tokens[i].type == TokType::TOKEN_RIGHT_BRACE) {
+            return false;
+        }
+        if (g_tokens[i].type == TokType::TOKEN_LEFT_PAREN) {
+            return false;
+        }
+        if (g_tokens[i].type == TokType::TOKEN_RIGHT_PAREN) {
+            return false;
+        }
+        i++;
+    }
+    return false;
+}
+
+[[nodiscard]] st::Expression parseAssignmentExpression() {
+    if (__EqualsSignLookahead() == false) {
+        return parsePrimaryExpression();
+    }
+    auto lhs = parsePrimaryExpression();
+    consume(TokType::TOKEN_EQUAL);
+    auto rhs = parsePrimaryExpression();
+    return std::make_unique<st::AssignmentExpression>(std::move(lhs), std::move(rhs));
+}
+
 [[nodiscard]] st::Expression parseExpression() {
-    auto primaryExpr = parsePrimaryExpression();
-    return st::Expression(std::move(primaryExpr));
+    return parseAssignmentExpression();
 }
 
 [[nodiscard]] std::unique_ptr<st::ReturnStatement> parseReturnStatement() {
@@ -167,12 +202,19 @@ void consume(TokType typ) {
     return std::make_unique<st::ReturnStatement>(std::move(expr));
 }
 
+[[nodiscard]] std::unique_ptr<st::ExpressionStatement> parseExpressionStatement() {
+    auto expr = parseExpression();
+    consume(TokType::TOKEN_SEMICOLON);
+    return std::make_unique<st::ExpressionStatement>(std::move(expr));
+}
+
 [[nodiscard]] st::Statement parseStatement() {
     if (match(TokType::TOKEN_RETURN)) {
         auto ret = parseReturnStatement();
         return st::Statement(std::move(ret));
     }
-    throw std::runtime_error("Expected statement");
+    auto expr = parseExpressionStatement();
+    return st::Statement(std::move(expr));
 }
 
 [[nodiscard]] st::BlockItem parseBlockItem() {

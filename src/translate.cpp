@@ -62,6 +62,18 @@ translate(const std::unique_ptr<st::PrimaryExpression> &expr, Ctx &ctx) {
         "translate(st::PrimaryExpression *expr, Ctx &ctx) not implemented");
 }
 
+// assignment
+[[nodiscard]] std::unique_ptr<ast::Node>
+translate(const std::unique_ptr<st::AssignmentExpression> &expr, Ctx &ctx) {
+    auto lhs = translate(expr->lhs, ctx);
+    auto rhs = translate(expr->rhs, ctx);
+    auto node= std::make_unique<ast::Node>();
+    node->type = ast::NodeType::Move;
+    node->left = std::move(lhs);
+    node->right = std::move(rhs);
+    return node;
+}
+
 // expression
 [[nodiscard]] std::unique_ptr<ast::Node> translate(const st::Expression &expr,
         Ctx &ctx) {
@@ -70,6 +82,10 @@ translate(const std::unique_ptr<st::PrimaryExpression> &expr, Ctx &ctx) {
         const auto &pe =
             std::get<std::unique_ptr<st::PrimaryExpression>>(std::move(e));
         return translate(pe, ctx);
+    }
+    if (std::holds_alternative<std::unique_ptr<st::AssignmentExpression>>(e)) {
+        const auto &ae =             std::get<std::unique_ptr<st::AssignmentExpression>>(std::move(e));
+        return translate(ae, ctx);
     }
     throw std::runtime_error("translate(const st::Expression &expr, Ctx &ctx)");
 }
@@ -113,9 +129,7 @@ translate(const st::Declaration &decl, Ctx &ctx) {
     lhs->type = ast::NodeType::Var;
     lhs->variableName = iden;
     lhs->variableType = *finalType;
-    std::cout << "lhs: " << *lhs << std::endl;
     ctx.local_variables[iden] = lhs.get();
-    std::cout << "lhs: " << *lhs << std::endl;
     const auto &expr = decl.initDeclarator.value().initializer.value().expr;
     auto init = translate(expr, ctx);
     auto node = std::make_unique<ast::Node>();
