@@ -1,4 +1,3 @@
-#include "allocator.hpp"
 #include <map>
 #include <optional>
 #include <set>
@@ -7,45 +6,42 @@
 #include <variant>
 #include <vector>
 
+#include "allocator.hpp"
+#include "qa_x86.hpp"
+
 namespace allocator {
 using reg = std::variant<as::Temp, as::HardcodedRegister>;
 struct Ctx {
   public:
     std::set<int> usedRegs = {};
-    std::map<reg, std::string> mapping = {};
-    std::vector<std::string> general_regs = {"ax", "bx", "cx", "dx", "si",
-        "di", "8",  "9",  "10", "11",
-        "12", "13", "14", "15"
-    };
+    std::map<reg, target::BaseRegister> mapping = {};
 
-    std::string getReg() {
+    target::BaseRegister getReg() {
         int i = 0;
-        for (const auto &str : general_regs) {
+        for (const auto &reg : target::general_regs) {
             if (usedRegs.find(i) == usedRegs.end()) {
                 usedRegs.insert(i);
-                return str;
+                return reg;
             }
             i++;
         }
         throw std::runtime_error("No free registers");
     }
 
-    std::string freeReg(std::string reg) {
-        int i = 0;
-        for (const auto &str : general_regs) {
-            if (str == reg) {
+    void freeReg(target::BaseRegister freedReg) {
+        for (unsigned long i = 0; i < target::general_regs.size(); i++) {
+            if (target::general_regs[i] == freedReg) {
                 usedRegs.erase(i);
-                return str;
+                return;
             }
-            i++;
         }
         throw std::runtime_error("Register not found");
     }
 };
 
 struct FirstLastUse {
-    std::map<as::Temp, int> firstUse = {};
-    std::map<as::Temp, int> lastUse = {};
+    std::map<int, int> firstUse = {};
+    std::map<int, int> lastUse = {};
 };
 
 [[nodiscard]] FirstLastUse getFirstUse(const as::Frame &frame) {
@@ -59,17 +55,17 @@ struct FirstLastUse {
         const auto operation = std::get<as::Operation>(ins);
         if (std::holds_alternative<as::Temp>(operation.src)) {
             const auto temp = std::get<as::Temp>(operation.src);
-            if (fl.firstUse.find(temp) == fl.firstUse.end()) {
-                fl.firstUse[temp] = i;
+            if (fl.firstUse.find(temp.id) == fl.firstUse.end()) {
+                fl.firstUse[temp.id] = i;
             }
-            fl.lastUse[temp] = i;
+            fl.lastUse[temp.id] = i;
         }
         if (std::holds_alternative<as::Temp>(operation.dest)) {
             const auto temp = std::get<as::Temp>(operation.dest);
-            if (fl.firstUse.find(temp) == fl.firstUse.end()) {
-                fl.firstUse[temp] = i;
+            if (fl.firstUse.find(temp.id) == fl.firstUse.end()) {
+                fl.firstUse[temp.id] = i;
             }
-            fl.lastUse[temp] = i;
+            fl.lastUse[temp.id] = i;
         }
     }
     return fl;
@@ -117,65 +113,57 @@ struct FirstLastUse {
     const auto fl = getFirstUse(frame);
     auto firstUse = fl.firstUse;
     auto lastUse = fl.lastUse;
-    const auto remappedRegisters = remap(newFrame);
+    auto remappedRegisters = remap(newFrame);
     for (const auto &entry : remappedRegisters) {
         const auto prev = entry.first;
         const auto newReg = entry.second;
-        firstUse[newReg] = std::min(firstUse[newReg], firstUse[prev]);
-        lastUse[newReg] = std::max(lastUse[newReg], lastUse[prev]);
+        firstUse[newReg.id] = std::min(firstUse[newReg.id], firstUse[prev.id]);
+        lastUse[newReg.id] = std::max(lastUse[newReg.id], lastUse[prev.id]);
     }
     std::vector<as::Instruction> newInstructions = {};
     int idx = 0;
-    for (const auto &i : newFrame.instructions) {
+    for (auto &i : newFrame.instructions) {
         idx += 1;
         if (std::holds_alternative<as::Label>(i)) {
             newInstructions.push_back(i);
             continue;
         }
         auto operation = std::get<as::Operation>(i);
-        std::optional<as::Location> src;
-        std::optional<as::Location> dest;
-        if (auto __src = std::get_if<as::HardcodedRegister>(&operation.src)) {
-            src = *__src;
+        if (std::holds_alternative<as::Temp>(operation.src)) {
+            const auto src = std::get<as::Temp>(operation.src);
+            if (lastUse.find(src.id) == lastUse.end()) {
+                throw std::runtime_error("Last use not found");
+            }
+            if (remappedRegisters.find(src) != remappedRegisters.end()) {
+                operation.src = remappedRegisters.at(src);
+            }
+            if (firstUse[src.id] == idx) {
+                ctx.mapping[src] = ctx.getReg();
+            }
+            if (ctx.mapping.find(src) == ctx.mapping.end()) {
+                ctx.mapping[src] = ctx.getReg();
+            }
+            operation.src =
+                as::HardcodedRegister{ctx.mapping.at(src), as::SizeOf(src)};
+            if (lastUse[src.id] == idx) {
+                ctx.freeReg(ctx.mapping.at(src));
+            }
         }
-        if (auto __src = std::get_if<as::Temp>(&operation.src)) {
-            src = *__src;
-            if (remappedRegisters.find(*__src) != remappedRegisters.end()) {
-                src = remappedRegisters.at(*__src);
+        if (std::holds_alternative<as::Temp>(operation.dest)) {
+            const auto dest = std::get<as::Temp>(operation.dest);
+            if (remappedRegisters.find(dest) != remappedRegisters.end()) {
+                operation.dest = remappedRegisters.at(dest);
             }
-            if (firstUse[*__src] == idx) {
-                const auto reg = ctx.getReg();
-                ctx.mapping[*__src] = reg;
+            if (firstUse[dest.id] == idx) {
+                ctx.mapping[dest] = ctx.getReg();
             }
-            const auto register_string = ctx.mapping.at(*__src);
-            src = as::HardcodedRegister{register_string, as::SizeOf(*src)};
-            operation.src = *src;
-            if (lastUse[*__src] == idx) {
-                ctx.freeReg(ctx.mapping.at(*__src));
+            if (ctx.mapping.find(dest) == ctx.mapping.end()) {
+                ctx.mapping[dest] = ctx.getReg();
             }
-        }
-        if (auto __dest = std::get_if<as::Temp>(&operation.dest)) {
-            dest = *__dest;
-            if (remappedRegisters.find(*__dest) != remappedRegisters.end()) {
-                dest = remappedRegisters.at(*__dest);
-            }
-            if (firstUse[*__dest] == idx) {
-                const auto reg = ctx.getReg();
-                ctx.mapping[*__dest] = reg;
-            }
-            if (ctx.mapping.find(*__dest) == ctx.mapping.end()) {
-                if (std::holds_alternative<as::Temp>(*dest)) {
-                    ctx.mapping[*__dest] = ctx.getReg();
-                } else {
-                    ctx.mapping[*__dest] =
-                        std::get<as::HardcodedRegister>(*dest).name.substr(1);
-                }
-            }
-            const auto register_string = ctx.mapping.at(*__dest);
-            dest = as::HardcodedRegister{register_string, as::SizeOf(*dest)};
-            operation.dest = *dest;
-            if (lastUse[*__dest] == idx) {
-                ctx.freeReg(ctx.mapping.at(*__dest));
+            operation.dest =
+                as::HardcodedRegister{ctx.mapping.at(dest), as::SizeOf(dest)};
+            if (lastUse[dest.id] == idx) {
+                ctx.freeReg(ctx.mapping.at(dest));
             }
         }
         newInstructions.push_back(operation);

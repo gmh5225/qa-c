@@ -39,4 +39,42 @@ std::unique_ptr<Node> makeNewReturn(std::unique_ptr<ast::Node> expr) {
     return node;
 }
 
+std::unique_ptr<Node> makeNewVar(std::string name, DataType type) {
+    auto node = std::make_unique<Node>();
+    node->type = NodeType::Var;
+    node->variableName = name;
+    node->variableType = type;
+    return node;
+}
+
+std::unique_ptr<Node> makeNewMove(std::unique_ptr<ast::Node> left,
+                                  std::unique_ptr<ast::Node> right) {
+    auto node = std::make_unique<Node>();
+    node->type = NodeType::Move;
+    node->left = std::move(left);
+    node->right = std::move(right);
+    return node;
+}
+
+std::unique_ptr<Node> makeNewMemWrite(std::unique_ptr<ast::Node> expr) {
+    auto node = std::make_unique<Node>();
+    node->type = NodeType::MemWrite;
+    node->expr = std::move(expr);
+    return node;
+}
+
+std::unique_ptr<Node> makeNewMemRead(std::unique_ptr<ast::Node> expr) {
+    auto node = std::make_unique<Node>();
+    node->type = NodeType::MemRead;
+    node->expr = std::move(expr);
+    return node;
+}
+
+std::unique_ptr<Node> makeNewAddr(std::unique_ptr<ast::Node> expr) {
+    auto node = std::make_unique<Node>();
+    node->type = NodeType::Addr;
+    node->expr = std::move(expr);
+    return node;
+}
+
 } // namespace ast

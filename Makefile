@@ -1,5 +1,5 @@
 CC := clang++
-CXXFLAGS := -Wall -Wextra -Werror -std=c++2b -g  
+CXXFLAGS := -Wall -Wextra -Wnon-virtual-dtor -pedantic -Wold-style-cast -Wunused -Woverloaded-virtual -Wconversion -std=c++2b -g  
 
 
 SRC_DIR := ./src

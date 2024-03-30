@@ -72,11 +72,12 @@ void consume(TokType typ) {
         if (peek().type == TokType::TOKEN_T_INT) {
             declspecs.push_back(st::DeclarationSpecifier{
                 st::TypeSpecifier{.type = st::TypeSpecifier::Type::INT}});
+        } else {
+            const auto ts = st::TypeSpecifier{.type = st::TypeSpecifier::Type::IDEN,
+                                              .iden = peek().lexeme};
+            const auto ds = st::DeclarationSpecifier{.typespecifier = ts};
+            declspecs.push_back(ds);
         }
-        const auto ts = st::TypeSpecifier{.type = st::TypeSpecifier::Type::IDEN,
-                                          .iden = peek().lexeme};
-        const auto ds = st::DeclarationSpecifier{.typespecifier = ts};
-        declspecs.push_back(ds);
         advance();
     }
     return declspecs;
@@ -139,7 +140,8 @@ void consume(TokType typ) {
 }
 
 [[nodiscard]] bool isStmtBegin(Token t) {
-    return t.type == TokType::TOKEN_RETURN || t.type == TokType::TOKEN_IDENTIFIER;
+    return t.type == TokType::TOKEN_RETURN ||
+           t.type == TokType::TOKEN_IDENTIFIER || t.type == TokType::TOKEN_STAR;
 }
 
 [[nodiscard]] std::unique_ptr<st::PrimaryExpression> parsePrimaryExpression() {
@@ -153,7 +155,8 @@ void consume(TokType typ) {
         advance();
         return std::make_unique<st::PrimaryExpression>(std::stoi(lexeme));
     }
-    throw std::runtime_error("Expected primary expression");
+    throw std::runtime_error("Expected primary expression found " +
+                             peek().lexeme);
 }
 
 [[nodiscard]] bool __EqualsSignLookahead() {
@@ -182,14 +185,29 @@ void consume(TokType typ) {
     return false;
 }
 
+[[nodiscard]] st::Expression parseUnaryExpression() {
+    if (match(TokType::TOKEN_STAR)) {
+        auto expr = parseUnaryExpression();
+        return std::make_unique<st::UnaryExpression>(st::UnaryExpressionType::DEREF,
+                std::move(expr));
+    }
+    if (match(TokType::TOKEN_AMPERSAND)) {
+        auto expr = parseUnaryExpression();
+        return std::make_unique<st::UnaryExpression>(st::UnaryExpressionType::ADDR,
+                std::move(expr));
+    }
+    return parsePrimaryExpression();
+}
+
 [[nodiscard]] st::Expression parseAssignmentExpression() {
     if (__EqualsSignLookahead() == false) {
-        return parsePrimaryExpression();
+        return parseUnaryExpression();
     }
-    auto lhs = parsePrimaryExpression();
+    auto lhs = parseUnaryExpression();
     consume(TokType::TOKEN_EQUAL);
-    auto rhs = parsePrimaryExpression();
-    return std::make_unique<st::AssignmentExpression>(std::move(lhs), std::move(rhs));
+    auto rhs = parseUnaryExpression();
+    return std::make_unique<st::AssignmentExpression>(std::move(lhs),
+            std::move(rhs));
 }
 
 [[nodiscard]] st::Expression parseExpression() {
@@ -202,7 +220,8 @@ void consume(TokType typ) {
     return std::make_unique<st::ReturnStatement>(std::move(expr));
 }
 
-[[nodiscard]] std::unique_ptr<st::ExpressionStatement> parseExpressionStatement() {
+[[nodiscard]] std::unique_ptr<st::ExpressionStatement>
+parseExpressionStatement() {
     auto expr = parseExpression();
     consume(TokType::TOKEN_SEMICOLON);
     return std::make_unique<st::ExpressionStatement>(std::move(expr));

@@ -1,5 +1,6 @@
 //1
 
 int main() {
-    return 1 ;
+    int a=  1 ;
+    return a; 
 }

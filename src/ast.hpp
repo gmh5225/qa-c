@@ -3,13 +3,52 @@
 #include <string>
 #include <vector>
 
+#include "st.hpp"
+
 namespace ast {
-enum class NodeType { ConstInt, Frame, Move, Temp, Seq, Jump, Return, Var };
+enum class NodeType {
+    ConstInt,
+    Frame,
+    Move,
+    Temp,
+    Seq,
+    Jump,
+    Return,
+    Var,
+    MemWrite,
+    MemRead,
+    Addr
+};
 
 struct DataType {
     std::string name;
-    int size;
-    DataType *pointsTo;
+    int size = 0;
+    DataType *pointsTo = nullptr;
+
+    DataType() : name(""), size(0), pointsTo(nullptr) {}
+
+    DataType(std::string name, int size, DataType *pointsTo)
+        : name(name), size(size), pointsTo(pointsTo) {}
+
+    DataType(const DataType &other)
+        : name(other.name), size(other.size), pointsTo(nullptr) {
+        if (other.pointsTo != nullptr) {
+            pointsTo = new DataType(*other.pointsTo);
+        }
+    }
+
+    DataType &operator=(const DataType &other) {
+        if (this != &other) {
+            name = other.name;
+            size = other.size;
+            delete pointsTo;
+            pointsTo = nullptr;
+            if (other.pointsTo != nullptr) {
+                pointsTo = new DataType(*other.pointsTo);
+            }
+        }
+        return *this;
+    }
 };
 
 struct FrameParam {
@@ -43,8 +82,18 @@ class Node {
     std::string jumpToLabelValue;
 
     // variable
-    std::string variableValue;
     ast::DataType variableType;
+
+    std::string VariableName() {
+        if (type == NodeType::Var) {
+            return variableName;
+        }
+        if (type == NodeType::MemRead) {
+            return expr->VariableName();
+        }
+        throw std::runtime_error("VariableName not implemented for type: " +
+                                 std::to_string(static_cast<int>(type)));
+    }
 };
 
 std::unique_ptr<Node> makeConstInt(int value);
@@ -55,6 +104,15 @@ makeNewFunction(std::string functionName,
                 std::vector<FrameParam> params);
 
 std::unique_ptr<Node> makeNewReturn(std::unique_ptr<ast::Node> expr);
+std::unique_ptr<Node> makeNewVar(std::string name, DataType type);
+
+std::unique_ptr<Node> makeNewMove(std::unique_ptr<ast::Node> left,
+                                  std::unique_ptr<ast::Node> right);
+
+std::unique_ptr<Node> makeNewMemWrite(std::unique_ptr<ast::Node> expr);
+std::unique_ptr<Node> makeNewMemRead(std::unique_ptr<ast::Node> expr);
+std::unique_ptr<Node> makeNewAddr(std::unique_ptr<ast::Node> expr);
+
 inline std::ostream &operator<<(std::ostream &os, const Node &node);
 inline std::ostream &DebugFrame(std::ostream &os, const Node &node) {
     os << "Frame(name=" << node.functionName << ", params=[";
@@ -63,18 +121,14 @@ inline std::ostream &DebugFrame(std::ostream &os, const Node &node) {
     }
     os << "], body=[";
     for (const auto &n : node.body) {
-        os << *n << ", ";
+        os << *n << std::endl;
     }
     os << "])";
     return os;
 }
 
 inline std::ostream &operator<<(std::ostream &os, const Node &node) {
-    switch (node.type) {
-    case NodeType::ConstInt:
-        os << "ConstInt(" << node.value << ")";
-        break;
-    case NodeType::Frame:
+    switch (node.type) { //
         DebugFrame(os, node);
         break;
     case NodeType::Move:
@@ -98,6 +152,21 @@ inline std::ostream &operator<<(std::ostream &os, const Node &node) {
         break;
     case NodeType::Var:
         os << "Var(variableName=" << node.variableName << ")";
+        break;
+    case NodeType::MemRead:
+        os << "MemRead(" << *node.expr << ")";
+        break;
+    case NodeType::MemWrite:
+        os << "MemWrite(" << *node.expr << ")";
+        break;
+    case NodeType::Addr:
+        os << "Addr(" << *node.expr << ")";
+        break;
+    case NodeType::ConstInt:
+        os << "ConstInt(" << node.value << ")";
+        break;
+    case NodeType::Frame:
+        DebugFrame(os, node);
         break;
     }
     return os;

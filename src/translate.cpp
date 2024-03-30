@@ -1,44 +1,25 @@
 #include "translate.hpp"
+#include "asttraits.hpp"
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
 #include <variant>
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-parameter"
-
 struct Ctx {
     unsigned long counter = 0;
+    bool __lvalueContext = false;
 
     std::unordered_map<std::string, ast::Node *> local_variables;
+
+    void set_lvalueContext(std::string why, bool value) {
+        // std::cout << "set_lvalueContext: " << why << " " << value << std::endl;
+        __lvalueContext = value;
+    }
 };
 
-[[nodiscard]] ast::DataType *
-toDataType(const std::vector<st::DeclarationSpecifier> &dss) {
-    return new ast::DataType{
-        .name = "int",
-        .size = 4,
-        .pointsTo = nullptr,
-    };
-}
-
-[[nodiscard]] ast::DataType *toDataType(const st::Declarator &decl,
-                                        ast::DataType *pointsTo) {
-    auto ptr = decl.pointer;
-    if (!ptr)
-        return nullptr;
-    auto levels = ptr.value().level;
-    ast::DataType *result = pointsTo;
-    for (size_t i = 0; i < levels; i++) {
-        result = new ast::DataType{
-            .name = "pointer",
-            .size = 8,
-            .pointsTo = result,
-        };
-    }
-    return result;
-}
+[[nodiscard]] std::unique_ptr<ast::Node> translate(const st::Expression &expr,
+        Ctx &ctx);
 
 // primary
 [[nodiscard]] std::unique_ptr<ast::Node>
@@ -50,11 +31,7 @@ translate(const std::unique_ptr<st::PrimaryExpression> &expr, Ctx &ctx) {
         const auto &iden = expr->idenValue;
         if (ctx.local_variables.find(iden) != ctx.local_variables.end()) {
             const auto &var = ctx.local_variables[iden];
-            auto n = std::make_unique<ast::Node>();
-            n->type = ast::NodeType::Var;
-            n->variableName = iden;
-            n->variableType = var->variableType;
-            return n;
+            return ast::makeNewVar(iden, var->variableType);
         }
         throw std::runtime_error("Variable not found: " + iden);
     }
@@ -65,13 +42,32 @@ translate(const std::unique_ptr<st::PrimaryExpression> &expr, Ctx &ctx) {
 // assignment
 [[nodiscard]] std::unique_ptr<ast::Node>
 translate(const std::unique_ptr<st::AssignmentExpression> &expr, Ctx &ctx) {
+    ctx.set_lvalueContext(
+           "translate(const st::AssignmentExpression &expr, Ctx &ctx)", true);
     auto lhs = translate(expr->lhs, ctx);
+    ctx.set_lvalueContext(
+           "translate(const st::AssignmentExpression &expr, Ctx &ctx)", false);
     auto rhs = translate(expr->rhs, ctx);
-    auto node= std::make_unique<ast::Node>();
-    node->type = ast::NodeType::Move;
-    node->left = std::move(lhs);
-    node->right = std::move(rhs);
-    return node;
+    return ast::makeNewMove(std::move(lhs), std::move(rhs));
+}
+
+// unary expression
+// assignment
+[[nodiscard]] std::unique_ptr<ast::Node>
+translate(const std::unique_ptr<st::UnaryExpression> &expr, Ctx &ctx) {
+    auto e = translate(expr->expr, ctx);
+    std::cout << "translated unary expression: " << *e << std::endl;
+    if (expr->type == st::UnaryExpressionType::DEREF &&
+            ctx.__lvalueContext == false) {
+        return ast::makeNewMemRead(std::move(e));
+    } else if (expr->type == st::UnaryExpressionType::DEREF &&
+               ctx.__lvalueContext == true) {
+        return ast::makeNewMemWrite(std::move(e));
+    } else if (expr->type == st::UnaryExpressionType::ADDR) {
+        return ast::makeNewAddr(std::move(e));
+    }
+    throw std::runtime_error(
+        "translate(const st::UnaryExpression &expr, Ctx &ctx)");
 }
 
 // expression
@@ -84,8 +80,14 @@ translate(const std::unique_ptr<st::AssignmentExpression> &expr, Ctx &ctx) {
         return translate(pe, ctx);
     }
     if (std::holds_alternative<std::unique_ptr<st::AssignmentExpression>>(e)) {
-        const auto &ae =             std::get<std::unique_ptr<st::AssignmentExpression>>(std::move(e));
+        const auto &ae =
+            std::get<std::unique_ptr<st::AssignmentExpression>>(std::move(e));
         return translate(ae, ctx);
+    }
+    if (std::holds_alternative<std::unique_ptr<st::UnaryExpression>>(e)) {
+        const auto &ue =
+            std::get<std::unique_ptr<st::UnaryExpression>>(std::move(e));
+        return translate(ue, ctx);
     }
     throw std::runtime_error("translate(const st::Expression &expr, Ctx &ctx)");
 }
@@ -93,7 +95,11 @@ translate(const std::unique_ptr<st::AssignmentExpression> &expr, Ctx &ctx) {
 // return statement
 [[nodiscard]] std::unique_ptr<ast::Node>
 translate(const std::unique_ptr<st::ReturnStatement> &stmt, Ctx &ctx) {
+    ctx.set_lvalueContext("translate(const st::ReturnStatement &stmt, Ctx &ctx)",
+                          false);
     auto expr = translate(stmt->expr, ctx);
+    ctx.set_lvalueContext("translate(const st::ReturnStatement &stmt, Ctx &ctx)",
+                          true);
     return ast::makeNewReturn(std::move(expr));
 }
 
@@ -108,48 +114,27 @@ translate(const std::unique_ptr<st::ExpressionStatement> &stmt, Ctx &ctx) {
 translate(const st::Declaration &decl, Ctx &ctx) {
     const auto iden =
         decl.initDeclarator.value().declarator.directDeclarator.VariableIden();
-    const auto finalType = toDataType(decl.declarationSpecifiers);
-    auto declarator = decl.initDeclarator.value().declarator;
-    if (declarator.pointer) {
-        const auto completeType = toDataType(declarator, finalType);
-        auto lhs = std::make_unique<ast::Node>();
-        lhs->type = ast::NodeType::Var;
-        lhs->variableName = iden;
-        lhs->variableType = *completeType;
-        ctx.local_variables[iden] = lhs.get();
-        const auto &expr = decl.initDeclarator.value().initializer.value().expr;
-        auto init = translate(expr, ctx);
-        auto node = std::make_unique<ast::Node>();
-        node->type = ast::NodeType::Move;
-        node->left = std::move(lhs);
-        node->right = std::move(init);
-        return node;
-    }
-    auto lhs = std::make_unique<ast::Node>();
-    lhs->type = ast::NodeType::Var;
-    lhs->variableName = iden;
-    lhs->variableType = *finalType;
-    ctx.local_variables[iden] = lhs.get();
+    auto datatype = asttraits::toDataType(decl);
+    auto var = ast::makeNewVar(iden, *datatype);
+    ctx.local_variables[iden] = var.get();
     const auto &expr = decl.initDeclarator.value().initializer.value().expr;
+    ctx.set_lvalueContext("translate(const st::Declaration &decl, Ctx &ctx)",
+                          false);
     auto init = translate(expr, ctx);
-    auto node = std::make_unique<ast::Node>();
-    node->type = ast::NodeType::Move;
-    node->left = std::move(lhs);
-    node->right = std::move(init);
-    return node;
+    ctx.set_lvalueContext("translate(const st::Declaration &decl, Ctx &ctx)",
+                          true);
+    return ast::makeNewMove(std::move(var), std::move(init));
 }
 
 [[nodiscard]] std::vector<ast::FrameParam>
-translate(const st::ParamTypeList &params) {
+translate(st::ParamTypeList &params) {
     std::vector<ast::FrameParam> result;
     for (const auto &p : params.params) {
         const auto name = p.Name();
-        const auto declarator = p.declarator;
-        const auto finalType = toDataType(p.declarationSpecifiers);
-        const auto paramType = toDataType(declarator, finalType);
+        const auto type = asttraits::toDataType(p);
         const auto fp = ast::FrameParam{
             .name = name,
-            .type = *paramType,
+            .type = *type,
         };
         result.push_back(fp);
     }
@@ -187,7 +172,7 @@ translate(st::CompoundStatement &stmts, Ctx &ctx) {
             auto node = translate(stmt, ctx);
             result.push_back(std::move(node));
         } else {
-            const auto &decl = std::get<st::Declaration>(bi.item);
+            auto &decl = std::get<st::Declaration>(bi.item);
             auto node = translate(decl, ctx);
             result.push_back(std::move(node));
         }
@@ -195,17 +180,16 @@ translate(st::CompoundStatement &stmts, Ctx &ctx) {
     return result;
 }
 
-[[nodiscard]] static std::unique_ptr<ast::Node>
-translate(const std::unique_ptr<st::FuncDef> &fd, Ctx &ctx) {
+[[nodiscard]] static std::unique_ptr<ast::Node> translate(st::FuncDef *fd,
+        Ctx &ctx) {
     const auto name = fd->Name();
-    const auto &functionParams = fd->DirectDeclarator().params;
+    auto functionParams = fd->DirectDeclarator().params;
     auto params = translate(functionParams);
     for (const auto &p : params) {
-        auto n = std::make_unique<ast::Node>();
-        n->type = ast::NodeType::Var;
-        n->variableName = p.name;
-        n->variableType = p.type;
-        ctx.local_variables[p.name] = n.get();
+        const auto name = p.name;
+        const auto type = p.type;
+        auto var = ast::makeNewVar(name, type);
+        ctx.local_variables[p.name] = var.get();
     }
     std::vector<std::unique_ptr<ast::Node>> body = translate(fd->body, ctx);
     return ast::makeNewFunction(name, std::move(body), std::move(params));
@@ -215,8 +199,8 @@ translate(const std::unique_ptr<st::FuncDef> &fd, Ctx &ctx) {
 translate(const st::ExternalDeclaration &node, Ctx &ctx) {
     const auto &nv = node.node;
     if (std::holds_alternative<std::unique_ptr<st::FuncDef>>(nv)) {
-        const auto &funcdef = std::get<std::unique_ptr<st::FuncDef>>(nv);
-        return translate(std::move(funcdef), ctx);
+        auto funcdef = std::get<std::unique_ptr<st::FuncDef>>(nv).get();
+        return translate(funcdef, ctx);
     }
     const auto &decl = std::get<st::Declaration>(nv);
     return translate(decl, ctx);
@@ -235,4 +219,3 @@ translate(const st::Program &program) {
     }
     return nodes;
 }
-#pragma clang diagnostic pop

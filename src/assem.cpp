@@ -1,13 +1,14 @@
-#include "assem.hpp"
-#include "system.hpp"
+
 #include <iostream>
 #include <map>
 #include <stdexcept>
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-parameter"
+#include "assem.hpp"
+#include "location.hpp"
+#include "qa_x86.hpp"
 
 namespace as {
+
 struct Ctx {
     int offset;
     int counter;
@@ -16,13 +17,11 @@ struct Ctx {
     std::map<std::string, StackLocation> variableLocation;
 
     Temp newTemp(int size) {
-        assert(size == 4 || size == 8);
         return Temp{counter++, size};
     }
 
     StackLocation newVar(ast::Node *node) {
         offset += node->variableType.size;
-        assert(node->variableType.size == 4 || node->variableType.size == 8);
         variableLocation[node->variableName] =
             StackLocation{offset, node->variableType.size};
         variableType[node->variableName] = node->variableType;
@@ -43,104 +42,10 @@ struct Ctx {
             return newVar(node);
         }
     }
-
 };
 
-std::ostream &operator<<(std::ostream &os, const Location &loc) {
-    if (std::holds_alternative<Temp>(loc)) {
-        os << "t" << std::get<Temp>(loc).id;
-    } else if (std::holds_alternative<HardcodedRegister>(loc)) {
-        os << std::get<HardcodedRegister>(loc).name;
-    }
-    return os;
-}
-
-std::ostream &operator<<(std::ostream &os, const Operation &ins) {
-    switch (ins.op) {
-    case OpCode::Mov:
-        os << "mov ";
-        break;
-    case OpCode::LoadI:
-        os << "loadI ";
-        break;
-    default:
-        throw std::runtime_error("Unknown OpCode");
-    }
-    if (auto dst = std::get_if<Temp>(&ins.dest)) {
-        os << *dst << " ";
-    } else if (auto dst = std::get_if<HardcodedRegister>(&ins.dest)) {
-        os << *dst << " ";
-    } else if (auto dst = std::get_if<StackLocation>(&ins.dest)) {
-        os << "rbp - " << dst->offset << " ";
-    }
-    if (auto src = std::get_if<Temp>(&ins.src)) {
-        os << *src << " ";
-    } else if (auto src = std::get_if<HardcodedRegister>(&ins.src)) {
-        os << *src << " ";
-    } else if (auto src = std::get_if<StackLocation>(&ins.src)) {
-        os << "rbp - " << src->offset << " ";
-    }
-    if (ins.value.has_value()) {
-        os << "value: " << ins.value.value();
-    }
-    return os;
-}
-
-[[nodiscard]] std::string toAsm(const Location &loc) {
-    if (std::holds_alternative<Temp>(loc)) {
-        throw std::runtime_error("Temp not implemented");
-    } else if (std::holds_alternative<HardcodedRegister>(loc)) {
-        return std::get<HardcodedRegister>(loc).toString();
-    } else if (std::holds_alternative<StackLocation>(loc)) {
-        auto size = std::get<StackLocation>(loc).size;
-        if (size == 4) {
-            return "dword [rbp - " +
-                   std::to_string(std::get<StackLocation>(loc).offset) + "]";
-        } else if (size == 8) {
-            return "qword [rbp - " +
-                   std::to_string(std::get<StackLocation>(loc).offset) + "]";
-        }
-    }
-    throw std::runtime_error("toAsm not implemented");
-}
-
-Operation LoadI(Location dst, int value) {
-    return Operation{.op = OpCode::LoadI,
-                     .dest = dst,
-                     .src = std::monostate{},
-                     .value = value};
-}
-
-[[nodiscard]] int SizeOf(const Location loc) {
-    if (std::holds_alternative<Temp>(loc)) {
-        auto res = std::get<Temp>(loc).size;
-        assert(res == 4 || res == 8);
-        return res;
-    } else if (std::holds_alternative<HardcodedRegister>(loc)) {
-        auto res = std::get<HardcodedRegister>(loc).size;
-        assert(res == 4 || res == 8);
-        return res;
-    } else {
-        auto res = std::get<StackLocation>(loc).size;
-        assert(res == 4 || res == 8);
-        return res;
-    }
-    throw std::runtime_error("SizeOf not implemented");
-}
-
-void _AllocParam(std::vector<Instruction> &ins, std::string conventionReg,
-                 ast::FrameParam p, Ctx &ctx) {
-    assert(p.type.size == 4 || p.type.size == 8);
-    // create a variable node for the paramter
-    auto var = std::make_unique<ast::Node>();
-    var->type = ast::NodeType::Var;
-    var->variableType = p.type;
-    var->variableName = p.name;
-    // allocate the variable
-    auto dst = ctx.newVar(var.get());
-    auto src = HardcodedReg(conventionReg, p.type.size);
-    ins.push_back(Mov(dst, src));
-}
+Location MunchExpr(std::vector<Instruction> &ins,
+                   const std::unique_ptr<ast::Node> &node, Ctx &ctx);
 
 Location MunchExpr(std::vector<Instruction> &ins,
                    const std::unique_ptr<ast::Node> &node, Ctx &ctx) {
@@ -151,13 +56,34 @@ Location MunchExpr(std::vector<Instruction> &ins,
         return temp;
     }
     case ast::NodeType::Var: {
-        auto loc = ctx.getVar(node.get());
-        assert(loc.size == 4 || loc.size == 8);
-        auto temp = ctx.newTemp(loc.size);
-        ins.push_back(Mov(temp, loc));
-        return temp;
+        return ctx.__GetOrDefineVar(node.get());
     }
-    break;
+    case ast::NodeType::MemRead: {
+        auto autoAddressOrIntermediate = MunchExpr(ins, node->expr, ctx);
+        // if we got a variable on our MunchExpr call, it is an address
+        if (std::holds_alternative<StackLocation>(autoAddressOrIntermediate)) {
+            // move to a temp return temp
+            auto temp = ctx.newTemp(8);
+            ins.push_back(Mov(temp, autoAddressOrIntermediate));
+            return temp;
+        }
+        // didn't return a stack location, instead returned the intermediate
+        // representing the load result
+        auto tempToHoldAddress = ctx.newTemp(8);
+        ins.push_back(Load(tempToHoldAddress, autoAddressOrIntermediate));
+        return tempToHoldAddress;
+    }
+    case ast::NodeType::MemWrite: {
+        auto addressOrIntermediate = MunchExpr(ins, node->expr, ctx);
+        auto temp1 = ctx.newTemp(8);
+        if (node->expr->type == ast::NodeType::MemWrite) {
+            // it is a load
+            ins.push_back(Load(temp1, addressOrIntermediate));
+        } else {
+            ins.push_back(Mov(temp1, addressOrIntermediate));
+        }
+        return temp1;
+    }
     default:
         break;
     }
@@ -168,24 +94,95 @@ void MunchStmt(std::vector<Instruction> &ins,
                const std::unique_ptr<ast::Node> &node, Ctx &ctx) {
     switch (node->type) {
     case ast::NodeType::Move: {
-        auto dst = ctx.__GetOrDefineVar(node->left.get());
-        auto src = MunchExpr(ins, node->right, ctx);
-        ins.push_back(Mov(dst, src));
-        return;
+        switch (node->left->type) {
+        case ast::NodeType::Var: {
+            auto dst = ctx.__GetOrDefineVar(node->left.get());
+            switch (node->right->type) {
+            case ast::NodeType::ConstInt: {
+                ins.push_back(LoadI(dst, node->right->value));
+                return;
+            }
+            case ast::NodeType::Addr: {
+                auto loc = ctx.getVar(node->right->expr.get());
+                auto temp = ctx.newTemp(8);
+                ins.push_back(Addr(temp, loc));
+                ins.push_back(Mov(dst, temp));
+                return;
+            }
+            case ast::NodeType::MemRead: {
+                auto addressToReadFrom = MunchExpr(ins, node->right, ctx);
+                auto temp = ctx.newTemp(dst.size);
+                ins.push_back(Load(temp, addressToReadFrom));
+                ins.push_back(Mov(dst, temp));
+                return;
+            }
+            case ast::NodeType::Var: {
+                auto src = ctx.getVar(node->right.get());
+                auto tmp = ctx.newTemp(src.size);
+                ins.push_back(Mov(tmp, src));
+                ins.push_back(Mov(dst, tmp));
+                return;
+            }
+            default:
+                throw std::runtime_error("Not a valid rhs for Move(Var, rhs)");
+            }
+        }
+        case ast::NodeType::MemWrite: {
+            switch (node->right->type) {
+            case ast::NodeType::ConstInt: {
+                auto dst = MunchExpr(ins, node->left, ctx);
+                ins.push_back(StoreI(dst, node->right->value));
+                return;
+            }
+            case ast::NodeType::MemRead: {
+                auto addressToReadFrom = MunchExpr(ins, node->right, ctx);
+                auto dst = MunchExpr(ins, node->left, ctx);
+                auto temp = ctx.newTemp(SizeOf(dst));
+                ins.push_back(Load(temp, addressToReadFrom));
+                ins.push_back(Store(dst, temp));
+                return;
+            }
+            case ast::NodeType::Var: {
+                auto src = ctx.getVar(node->right.get());
+                auto tmp = ctx.newTemp(src.size);
+                ins.push_back(Mov(tmp, src));
+                auto dst = MunchExpr(ins, node->left, ctx);
+                ins.push_back(Store(dst, tmp));
+                return;
+            }
+            default:
+                throw std::runtime_error("Not a valid rhs for Move(Var, rhs)");
+            }
+        }
+        default:
+            throw std::runtime_error("Not a valid target for move");
+        }
     }
     case ast::NodeType::Return: {
-        std::unique_ptr<ast::Node> expr = std::move(node->expr);
-        auto src = MunchExpr(ins, expr, ctx);
-        auto dst = HardcodedReg("ax", SizeOf(src));
-        ins.push_back(Mov(dst, src));
-        return;
+        switch (node->expr->type) {
+        case ast::NodeType::ConstInt: {
+            auto dest = HardcodedRegister{.reg = target::BaseRegister::AX, .size = 4};
+            ins.push_back(LoadI(dest, node->expr->value));
+            return;
+        }
+        case ast::NodeType::Var: {
+            auto src = ctx.getVar(node->expr.get());
+            auto tmp = ctx.newTemp(src.size);
+            ins.push_back(Mov(tmp, src));
+            auto dest =
+                HardcodedRegister{.reg = target::BaseRegister::AX, .size = src.size};
+            ins.push_back(Mov(dest, tmp));
+            return;
+        }
+        default:
+            throw std::runtime_error("Not a valid return type");
+        }
     }
     case ast::NodeType::Jump:
         break;
     default:
         break;
     }
-    std::cerr << "type: " << static_cast<int>(node->type) << std::endl;
     throw std::runtime_error("MunchStmt not implemented");
 }
 
@@ -199,9 +196,15 @@ As_Instructions(const std::vector<std::unique_ptr<ast::Node>> &nodes) {
         }
         const auto name = node->functionName;
         std::vector<Instruction> instructions;
-        int idx = 0;
+        unsigned long idx = 0;
         for (const auto &p : node->params) {
-            _AllocParam(instructions, target::general_regs[idx], p, ctx);
+            // create a variable node for the paramter
+            auto var = ast::makeNewVar(p.name, p.type);
+            // create a stack location for the variable
+            auto dst = ctx.newVar(var.get());
+            const auto param_register = target::param_regs.at(idx);
+            auto src = HardcodedRegister{.reg = param_register, .size = p.type.size};
+            instructions.push_back(Mov(dst, src));
             idx++;
         }
         auto body = std::move(node->body);
@@ -214,5 +217,3 @@ As_Instructions(const std::vector<std::unique_ptr<ast::Node>> &nodes) {
     return frames;
 }
 } // namespace as
-
-#pragma clang diagnostic pop

@@ -15,6 +15,8 @@ enum TokType {
     TOKEN_SLASH,
     TOKEN_STAR,
 
+    TOKEN_AMPERSAND,
+
     // One or two character tokens.
     TOKEN_BANG,
     TOKEN_BANG_EQUAL,

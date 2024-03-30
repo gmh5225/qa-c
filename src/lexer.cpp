@@ -45,6 +45,8 @@ char advance() {
 [[nodiscard]] std::optional<Token> scanToken() {
     char c = advance();
     switch (c) {
+    case '&':
+        return Token{TokType::TOKEN_AMPERSAND, "&"};
     case '(':
         return Token{TokType::TOKEN_LEFT_PAREN, "("};
     case ')':

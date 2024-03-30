@@ -27,6 +27,34 @@ void generateASMForInstruction(const as::Instruction &is, Ctx &ctx) {
             auto dest = as::toAsm(op.dest);
             ctx.AddInstruction("mov " + dest + ", " +
                                std::to_string(op.value.value()));
+        } else if (op.op == as::OpCode::Deref) {
+            auto dest = as::toAsm(op.dest);
+            auto src = as::toAsm(op.src);
+            ctx.AddInstruction("mov " + dest + ", " + src);
+        } else if (op.op == as::OpCode::Addr) {
+            auto dest = as::toAsm(op.dest);
+            auto src = as::toAsm(op.src);
+            ctx.AddInstruction("lea " + dest + ", " + src);
+        } else if (op.op == as::OpCode::StoreI) {
+            auto dest = as::toAsm(op.dest);
+            ctx.AddInstruction("mov dword [" + dest + "], " +
+                               std::to_string(op.value.value()));
+        } else if (op.op == as::OpCode::Load) {
+            auto dest = as::toAsm(op.dest);
+            auto src = as::toAsm(op.src);
+            if (SizeOf(op.dest) == 8) {
+                ctx.AddInstruction("mov " + dest + ", qword [" + src + "]");
+            } else if (SizeOf(op.dest) == 4) {
+                ctx.AddInstruction("mov " + dest + ", dword [" + src + "]");
+            } else {
+                throw std::runtime_error("Unknown size for Load");
+            }
+        } else if (op.op == as::OpCode::Store) {
+            auto dest = as::toAsm(op.dest);
+            auto src = as::toAsm(op.src);
+            ctx.AddInstruction("mov [" + dest + "], " + src);
+        } else {
+            throw std::runtime_error("Unknown OpCode for code gen");
         }
     } else if (std::holds_alternative<as::Label>(is)) {
         const auto &label = std::get<as::Label>(is);

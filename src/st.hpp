@@ -9,6 +9,23 @@
 
 namespace st {
 
+class PrimaryExpression;
+class AssignmentExpression;
+class UnaryExpression;
+
+class Expression {
+  public:
+    Expression(std::unique_ptr<PrimaryExpression> expr);
+    Expression(std::unique_ptr<AssignmentExpression> expr);
+    Expression(std::unique_ptr<UnaryExpression> expr);
+
+    std::variant<std::unique_ptr<PrimaryExpression>,
+        std::unique_ptr<AssignmentExpression>,
+        std::unique_ptr<UnaryExpression>>
+        expr;
+};
+inline std::ostream &operator<<(std::ostream &os, const Expression &node);
+
 enum class PrimaryExpressionType { INT, IDEN };
 
 class PrimaryExpression {
@@ -32,28 +49,62 @@ class PrimaryExpression {
     std::string idenValue;
 };
 
-class Expression;
-
 class AssignmentExpression {
   public:
-    AssignmentExpression(std::unique_ptr<PrimaryExpression> lhs, std::unique_ptr<PrimaryExpression> rhs);
+    AssignmentExpression(Expression lhs, Expression rhs);
 
-    std::unique_ptr<PrimaryExpression> lhs;
-    std::unique_ptr<PrimaryExpression> rhs;
+    std::ostream &print(std::ostream &os) {
+        os << "AssignmentExpression(lhs=";
+        os << lhs;
+        os << ", rhs=";
+        os << rhs;
+        os << ")";
+        return os;
+    }
+
+    Expression lhs;
+    Expression rhs;
 };
 
-class Expression {
-  public:
-    Expression(std::unique_ptr<PrimaryExpression> expr) : expr(std::move(expr)) {}
-    Expression(std::unique_ptr<AssignmentExpression> expr) : expr(std::move(expr)) {}
+enum class UnaryExpressionType { DEREF, ADDR };
 
-    std::variant<std::unique_ptr<PrimaryExpression>, std::unique_ptr<AssignmentExpression>> expr;
+class UnaryExpression {
+  public:
+    UnaryExpression(UnaryExpressionType type, st::Expression p_expr)
+        : type(type), expr(std::move(p_expr)) {}
+
+    std::ostream &print(std::ostream &os) {
+        os << "UnaryExpression(type=";
+        if (type == UnaryExpressionType::DEREF) {
+            os << "DEREF";
+        } else {
+            os << "ADDR";
+        }
+        os << ", expr=";
+        os << expr;
+        os << ")";
+        return os;
+    }
+
+    UnaryExpressionType type;
+    Expression expr;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Expression &node) {
     os << "Expression(expr=";
     if (std::holds_alternative<std::unique_ptr<PrimaryExpression>>(node.expr)) {
         return std::get<std::unique_ptr<PrimaryExpression>>(node.expr)->print(os);
+    }
+    if (std::holds_alternative<std::unique_ptr<AssignmentExpression>>(
+                node.expr)) {
+        os << "AssignmentExpression(";
+        std::get<std::unique_ptr<AssignmentExpression>>(node.expr).get()->print(os);
+        os << ")";
+    }
+    if (std::holds_alternative<std::unique_ptr<UnaryExpression>>(node.expr)) {
+        os << "UnaryExpression(";
+        std::get<std::unique_ptr<UnaryExpression>>(node.expr).get()->print(os);
+        os << ")";
     }
     return os << ")";
 }
@@ -179,6 +230,10 @@ class ParameterDeclaration {
 
     std::vector<DeclarationSpecifier> declarationSpecifiers;
     Declarator declarator;
+
+    Declarator Declarator() const {
+        return declarator;
+    }
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Declarator &node) {
@@ -213,6 +268,13 @@ class Declaration {
   public:
     std::vector<DeclarationSpecifier> declarationSpecifiers;
     std::optional<InitDeclarator> initDeclarator;
+
+    std::optional<Declarator> Declarator() const {
+        if (initDeclarator) {
+            return initDeclarator->declarator;
+        }
+        return std::nullopt;
+    }
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Declaration &node) {
@@ -308,12 +370,13 @@ inline std::ostream &operator<<(std::ostream &os,
                                 const CompoundStatement &node) {
     os << "CompoundStatement(items=[";
     for (auto &v : node.items) {
-        if (std::holds_alternative<st::Declaration>(v.item)) {
+        if (std::holds_alternative<Declaration>(v.item)) {
             os << std::get<Declaration>(v.item) << std::endl;
         } else {
-            const auto &stmt = std::get<st::Statement>(v.item);
+            const auto &stmt = std::get<Statement>(v.item);
             os << stmt << std::endl;
         }
+        os << "\n";
     }
     os << "])";
     return os;
