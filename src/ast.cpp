@@ -1,4 +1,4 @@
-
+#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -67,6 +67,11 @@ std::unique_ptr<Node> makeNewMemRead(std::unique_ptr<ast::Node> expr) {
     auto node = std::make_unique<Node>();
     node->type = NodeType::MemRead;
     node->expr = std::move(expr);
+    if (node->expr->type == NodeType::Addr) {
+        node->type = node->expr->expr->type;
+        // hack to copy, assumes that it is a variable. works now for nested stuff
+        node->variableName = node->expr->expr->variableName;
+    }
     return node;
 }
 

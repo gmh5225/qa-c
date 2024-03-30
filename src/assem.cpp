@@ -84,6 +84,9 @@ Location MunchExpr(std::vector<Instruction> &ins,
         }
         return temp1;
     }
+    case ast::NodeType::Addr: {
+        return MunchExpr(ins, node->expr, ctx);
+    }
     default:
         break;
     }
@@ -172,6 +175,17 @@ void MunchStmt(std::vector<Instruction> &ins,
             auto dest =
                 HardcodedRegister{.reg = target::BaseRegister::AX, .size = src.size};
             ins.push_back(Mov(dest, tmp));
+            return;
+        }
+        case ast::NodeType::MemRead: {
+            auto variableName = node->expr->VariableName();
+            const auto datatype = ctx.variableType[variableName]  ;
+            const auto pointsToSize = datatype.FinalPointsTo().size;
+            auto addressToReadFrom = MunchExpr(ins, node->expr, ctx);
+            auto temp = ctx.newTemp(pointsToSize);
+            ins.push_back(Load(temp, addressToReadFrom));
+            auto dest = HardcodedRegister{.reg = target::BaseRegister::AX, .size = pointsToSize};
+            ins.push_back(Mov(dest, temp));
             return;
         }
         default:

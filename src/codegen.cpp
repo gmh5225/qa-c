@@ -22,15 +22,14 @@ void generateASMForInstruction(const as::Instruction &is, Ctx &ctx) {
         if (op.op == as::OpCode::Mov) {
             auto dest = as::toAsm(op.dest);
             auto src = as::toAsm(op.src);
+            if (dest == src) {
+                return;
+            }
             ctx.AddInstruction("mov " + dest + ", " + src);
         } else if (op.op == as::OpCode::LoadI) {
             auto dest = as::toAsm(op.dest);
             ctx.AddInstruction("mov " + dest + ", " +
                                std::to_string(op.value.value()));
-        } else if (op.op == as::OpCode::Deref) {
-            auto dest = as::toAsm(op.dest);
-            auto src = as::toAsm(op.src);
-            ctx.AddInstruction("mov " + dest + ", " + src);
         } else if (op.op == as::OpCode::Addr) {
             auto dest = as::toAsm(op.dest);
             auto src = as::toAsm(op.src);

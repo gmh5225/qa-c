@@ -38,10 +38,6 @@ Operation Mov(Location dst, Location src) {
     return Operation{OpCode::Mov, {dst}, {src}, std::nullopt};
 }
 
-Operation Deref(Location dst, Location src) {
-    return Operation{OpCode::Deref, {dst}, {src}, std::nullopt};
-}
-
 Operation Addr(Location dst, Location src) {
     return Operation{OpCode::Addr, {dst}, {src}, std::nullopt};
 }
@@ -53,9 +49,6 @@ std::ostream &operator<<(std::ostream &os, const Operation &ins) {
         break;
     case OpCode::LoadI:
         os << "loadI ";
-        break;
-    case OpCode::Deref:
-        os << "deref ";
         break;
     case OpCode::Addr:
         os << "addr ";

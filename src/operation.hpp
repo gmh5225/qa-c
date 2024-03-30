@@ -7,7 +7,7 @@
 #include "location.hpp"
 
 namespace as {
-enum class OpCode { Mov, Load, LoadI, Deref, Addr, StoreI, Store };
+enum class OpCode { Mov, Load, LoadI,  Addr, StoreI, Store };
 
 struct Operation {
     OpCode op;
@@ -26,7 +26,7 @@ Operation StoreI(Location dst, int value);
 Operation Load(Location dst, Location src);
 Operation Store(Location dst, Location src);
 Operation Mov(Location dst, Location src);
-Operation Deref(Location dst, Location src);
+
 Operation Addr(Location dst, Location src);
 
 std::ostream &operator<<(std::ostream &os, const Operation &ins);

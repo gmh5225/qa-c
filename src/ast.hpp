@@ -49,6 +49,14 @@ struct DataType {
         }
         return *this;
     }
+
+    DataType FinalPointsTo() const {
+        if (pointsTo == nullptr) {
+            return *this;
+        }
+        return pointsTo->FinalPointsTo();
+    }
+
 };
 
 struct FrameParam {
