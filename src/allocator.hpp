@@ -4,6 +4,6 @@
 #include <vector>
 
 namespace allocator {
-[[nodiscard]] std::vector<as::Frame>
-rewrite(const std::vector<as::Frame> &frames);
+[[nodiscard]] std::vector<target::Frame>
+rewrite(const std::vector<target::Frame> &frames);
 }

@@ -6,29 +6,53 @@
 
 #include "location.hpp"
 
-namespace as {
-enum class OpCode { Mov, Load, LoadI,  Addr, StoreI, Store };
+namespace qa_ir {
 
-struct Operation {
-    OpCode op;
-    Location dest;
-    Location src;
-
-    std::optional<int> value;
-
-    HardcodedRegister getDestReg() const;
-
-    HardcodedRegister getSrcReg() const;
+struct Mov {
+  Value dst;
+  Value src;
 };
 
-Operation LoadI(Location dst, int value);
-Operation StoreI(Location dst, int value);
-Operation Load(Location dst, Location src);
-Operation Store(Location dst, Location src);
-Operation Mov(Location dst, Location src);
+struct Ret {
+  Value value;
+};
 
-Operation Addr(Location dst, Location src);
+struct Add {
+  Value dst;
+
+  Value left;
+  Value right;
+};
+
+struct Sub {
+  Value dst;
+  Value left;
+  Value right;
+};
+
+struct MovR {
+  Value dst;
+  HardcodedRegister src;
+};
+
+struct Addr {
+  Value dst;
+  Value src;
+};
+
+struct Deref {
+  Value dst;
+  Value src;
+};
+
+struct StoreAddr {
+  Value dst;
+  Value src;
+};
+
+using Operation =
+    std::variant<Mov, Ret, Add, Sub, MovR, Addr, Deref, StoreAddr>;
 
 std::ostream &operator<<(std::ostream &os, const Operation &ins);
 
-} // namespace as
+} // namespace qa_ir

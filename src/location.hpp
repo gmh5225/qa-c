@@ -6,34 +6,33 @@
 
 #include "qa_x86.hpp"
 
-namespace as {
+namespace qa_ir {
 struct Temp {
-    int id;
-    int size;
+  int id;
+  int size;
 };
 
 bool operator<(const Temp &lhs, const Temp &rhs);
 std::ostream &operator<<(std::ostream &os, const Temp &temp);
 
 struct HardcodedRegister {
-    target::BaseRegister reg;
-    int size;
+  target::BaseRegister reg;
+  int size;
 
-    [[nodiscard]] std::string to_asm() const;
+  [[nodiscard]] std::string to_asm() const;
 };
 bool operator<(const HardcodedRegister &lhs, const HardcodedRegister &rhs);
 std::ostream &operator<<(std::ostream &os, const HardcodedRegister &reg);
 
-struct StackLocation {
-    int offset;
-    int size;
+struct Variable {
+  std::string name;
+  int version = 0;
+  int size = 0;
 };
 
-using Location =
-    std::variant<std::monostate, Temp, HardcodedRegister, StackLocation>;
+using Value =
+    std::variant<std::monostate, Temp, HardcodedRegister, Variable, int>;
 
-[[nodiscard]] std::string toAsm(const Location &loc);
+[[nodiscard]] int SizeOf(Value v);
 
-[[nodiscard]] int SizeOf(Location loc);
-
-} // namespace as
+} // namespace qa_ir

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ast.hpp"
 #include <cassert>
 #include <iostream>
 #include <memory>
@@ -9,32 +8,24 @@
 #include <variant>
 #include <vector>
 
+#include "ast.hpp"
 #include "location.hpp"
 #include "operation.hpp"
 #include "qa_x86.hpp"
 
-namespace as {
+namespace qa_ir {
 
 struct Label {
-    std::string name;
+  std::string name;
 };
 
-using Instruction = std::variant<Operation, Label>;
-
-inline std::ostream &operator<<(std::ostream &os, const Instruction &ins) {
-    std::visit([&os](const auto &arg) {
-        os << arg;
-    }, ins);
-    return os;
-}
-
 struct Frame {
-    std::string name;
-    std::vector<Instruction> instructions;
-    int size = 0;
+  std::string name;
+  std::vector<Operation> instructions;
+  int size = 0;
 };
 
 [[nodiscard]] std::vector<Frame>
-As_Instructions(const std::vector<std::unique_ptr<ast::Node>> &nodes);
+Produce_IR(const std::vector<std::unique_ptr<ast::Node>> &nodes);
 
-} // namespace as
+} // namespace qa_ir
