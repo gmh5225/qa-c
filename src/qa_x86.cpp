@@ -132,6 +132,12 @@ std::ostream &operator<<(std::ostream &os, const Instruction &ins) {
     } else if (std::holds_alternative<Add>(ins)) {
         const auto add = std::get<Add>(ins);
         os << "add " << add.src << " -> " << add.dst;
+    } else if (std::holds_alternative<Sub>(ins)) {
+        const auto sub = std::get<Sub>(ins);
+        os << "sub " << sub.src << " -> " << sub.dst;
+    } else if (std::holds_alternative<SubI>(ins)) {
+        const auto subI = std::get<SubI>(ins);
+        os << "subI " << subI.value << " -> " << subI.dst;
     } else {
         throw std::runtime_error("Unsupported instruction type");
     }
