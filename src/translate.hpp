@@ -6,4 +6,4 @@
 #include "st.hpp"
 
 [[nodiscard]] std::vector<std::unique_ptr<ast::Node>>
-translate(const st::Program &program);
+        translate(const st::Program &program);

@@ -16,13 +16,13 @@
 namespace qa_ir {
 
 struct Label {
-  std::string name;
+    std::string name;
 };
 
 struct Frame {
-  std::string name;
-  std::vector<Operation> instructions;
-  int size = 0;
+    std::string name;
+    std::vector<Operation> instructions;
+    int size = 0;
 };
 
 [[nodiscard]] std::vector<Frame>
