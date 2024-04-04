@@ -50,8 +50,14 @@ struct StoreAddr {
     Value src;
 };
 
+struct Equal {
+    Value dst;
+    Value left;
+    Value right;
+};
+
 using Operation =
-    std::variant<Mov, Ret, Add, Sub, MovR, Addr, Deref, StoreAddr>;
+    std::variant<Mov, Ret, Add, Sub, MovR, Addr, Deref, StoreAddr, Equal>;
 
 std::ostream &operator<<(std::ostream &os, const Operation &ins);
 

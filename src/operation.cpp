@@ -29,6 +29,9 @@ std::ostream &operator<<(std::ostream &os, const Operation &ins) {
     } else if (std::holds_alternative<StoreAddr>(ins)) {
         const auto &storeaddr = std::get<StoreAddr>(ins);
         os << "storeaddr " << storeaddr.dst << ", " << storeaddr.src;
+    } else if (std::holds_alternative<Equal>(ins)) {
+        const auto &equal = std::get<Equal>(ins);
+        os << "equal " << equal.dst << ", " << equal.left << ", " << equal.right;
     } else {
         throw std::runtime_error("Unknown instruction type");
     }

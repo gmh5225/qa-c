@@ -93,6 +93,8 @@ std::unique_ptr<Node> makeNewBinOp(std::unique_ptr<ast::Node> lhs,
             return makeConstInt(lhs->value + rhs->value);
         case BinOpKind::Sub:
             return makeConstInt(lhs->value - rhs->value);
+        case BinOpKind::Eq:
+            return makeConstInt(lhs->value == rhs->value);
         default:
             throw std::runtime_error("Unknown BinOpKind");
         }

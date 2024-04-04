@@ -84,6 +84,10 @@ translate(const std::unique_ptr<st::AdditiveExpression> &expr, Ctx &ctx) {
         return ast::makeNewBinOp(std::move(lhs), std::move(rhs),
                                  ast::BinOpKind::Sub);
     }
+    if (expr->type == st::AdditiveExpressionType::EQ) {
+        return ast::makeNewBinOp(std::move(lhs), std::move(rhs),
+                                 ast::BinOpKind::Eq);
+    }
     throw std::runtime_error(
         "translate(const st::AdditiveExpression &expr, Ctx &ctx)");
 }

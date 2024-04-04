@@ -218,13 +218,28 @@ void consume(TokType typ) {
     return lhs;
 }
 
+[[nodiscard]] st::Expression parseEqualityExpression() {
+    auto lhs = parseAdditiveExpression();
+    if (match(TokType::TOKEN_EQUAL_EQUAL) || match(TokType::TOKEN_BANG_EQUAL)) {
+        auto op_token = previous();
+        auto op = st::AdditiveExpressionType::EQ;
+        if (op_token.type == TokType::TOKEN_BANG_EQUAL) {
+            op = st::AdditiveExpressionType::NEQ;
+        }
+        auto rhs = parseAdditiveExpression();
+        return std::make_unique<st::AdditiveExpression>(std::move(lhs),
+                std::move(rhs), op);
+    }
+    return lhs;
+}
+
 [[nodiscard]] st::Expression parseAssignmentExpression() {
     if (__EqualsSignLookahead() == false) {
-        return parseAdditiveExpression();
+        return parseEqualityExpression();
     }
-    auto lhs = parseUnaryExpression();
+    auto lhs = parseEqualityExpression();
     consume(TokType::TOKEN_EQUAL);
-    auto rhs = parseAdditiveExpression();
+    auto rhs = parseEqualityExpression();
     return std::make_unique<st::AssignmentExpression>(std::move(lhs),
             std::move(rhs));
 }

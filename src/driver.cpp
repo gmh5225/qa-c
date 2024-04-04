@@ -49,14 +49,14 @@ int runfile(const char *sourcefile) {
             std::cout << ins << std::endl;
         }
     }
-    std::cout << "-----------------" << std::endl;
-    std::cout << "OPTIMIZED LOWER_IR:" << std::endl;
-    auto optimized_frames = optimizer::optimize_lowered(lowered_frames);
-    for (const auto &frame : optimized_frames) {
-        for (const auto &ins : frame.instructions) {
-            std::cout << ins << std::endl;
-        }
-    }
+    // std::cout << "-----------------" << std::endl;
+    // std::cout << "OPTIMIZED LOWER_IR:" << std::endl;
+    // auto optimized_frames = optimizer::optimize_lowered(lowered_frames);
+    // for (const auto &frame : optimized_frames) {
+    //     for (const auto &ins : frame.instructions) {
+    //         std::cout << ins << std::endl;
+    //     }
+    // }
     std::cout << "REGISTER_ALLOCATION: :" << std::endl;
     auto rewritten = allocator::rewrite(lowered_frames);
     for (const auto &frame : rewritten) {

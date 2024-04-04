@@ -138,6 +138,15 @@ std::ostream &operator<<(std::ostream &os, const Instruction &ins) {
     } else if (std::holds_alternative<SubI>(ins)) {
         const auto subI = std::get<SubI>(ins);
         os << "subI " << subI.value << " -> " << subI.dst;
+    } else if (std::holds_alternative<CmpI>(ins)) {
+        const auto cmpI = std::get<CmpI>(ins);
+        os << "cmpI " << cmpI.value << " to -> " << cmpI.dst;
+    } else if (std::holds_alternative<SetAl>(ins)) {
+        const auto setAl = std::get<SetAl>(ins);
+        os << "setAl " << setAl.dst;
+    } else if (std::holds_alternative<Cmp>(ins)) {
+        const auto cmp = std::get<Cmp>(ins);
+        os << "cmp " << cmp.dst << " -> " << cmp.src;
     } else {
         throw std::runtime_error("Unsupported instruction type");
     }

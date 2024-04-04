@@ -150,10 +150,13 @@ std::vector<Instruction> Ctx::toLocation(Location l, qa_ir::Value v) {
         VirtualRegister left_reg,
         int value) {
     if (kind == ast::BinOpKind::Add) {
-        return AddI{.dst = left_reg, .value = value};
+        return {AddI{.dst = left_reg, .value = value}};
     }
     if (kind == ast::BinOpKind::Sub) {
-        return SubI{.dst = left_reg, .value = value};
+        return {SubI{.dst = left_reg, .value = value}};
+    }
+    if (kind == ast::BinOpKind::Eq) {
+        return {CmpI{.dst = left_reg, .value = value}};
     }
     throw std::runtime_error("CreateArthInstruction not implemented");
 }
@@ -162,12 +165,87 @@ std::vector<Instruction> Ctx::toLocation(Location l, qa_ir::Value v) {
         VirtualRegister left_reg,
         VirtualRegister right_reg) {
     if (kind == ast::BinOpKind::Add) {
-        return Add{.dst = left_reg, .src = right_reg};
+        return {Add{.dst = left_reg, .src = right_reg}};
     }
     if (kind == ast::BinOpKind::Sub) {
-        return Sub{.dst = left_reg, .src = right_reg};
+        return {Sub{.dst = left_reg, .src = right_reg}};
+    }
+    if (kind == ast::BinOpKind::Eq) {
+        return {Cmp{.dst = left_reg, .src = right_reg}};
     }
     throw std::runtime_error("CreateArthInstruction not implemented");
+}
+
+[[nodiscard]] std::vector<Instruction> InstructionForArth(ast::BinOpKind kind,
+        Location dst,
+        qa_ir::Value left,
+        int value, Ctx &ctx) {
+    const auto leftreg = ctx.NewRegister(SizeOf(left));
+    std::vector<Instruction> result = ctx.toLocation(leftreg, left);
+    auto arth_instruction = __Create_Arth_Instruction(kind, leftreg, value);
+    result.push_back(arth_instruction);
+    if (kind == ast::BinOpKind::Eq) {
+        auto newReg = ctx.NewRegister(4) ;
+        result.push_back(SetAl{.dst = newReg});
+        const auto move_dest_instructions = Register_To_Location(dst, newReg, &ctx);
+        result.insert(result.end(), move_dest_instructions.begin(),
+                      move_dest_instructions.end());
+        return result;
+    }
+    const auto move_dest_instructions = Register_To_Location(dst, leftreg, &ctx);
+    result.insert(result.end(), move_dest_instructions.begin(),
+                  move_dest_instructions.end());
+    return result;
+}
+
+[[nodiscard]] std::vector<Instruction>
+InstructionForArth(ast::BinOpKind kind,  Location dst, qa_ir::Value left,
+                   qa_ir::Temp right, Ctx &ctx) {
+    const auto leftreg = ctx.NewRegister(SizeOf(left));
+    std::vector<Instruction> result = ctx.toLocation(leftreg, left);
+    const auto rightreg = ctx.NewRegister(SizeOf(right));
+    const auto rightRegister = ctx.toLocation(rightreg, right);
+    result.insert(result.end(), rightRegister.begin(), rightRegister.end());
+    const auto arth_instruction =
+        __Create_Arth_Instruction(kind, leftreg, rightreg);
+    result.push_back(arth_instruction);
+    if (kind == ast::BinOpKind::Eq) {
+        auto newReg = ctx.NewRegister(4) ;
+        result.push_back(SetAl{.dst = newReg});
+        const auto move_dest_instructions = Register_To_Location(dst, newReg, &ctx);
+        result.insert(result.end(), move_dest_instructions.begin(),
+                      move_dest_instructions.end());
+        return result;
+    }
+    const auto move_dest_instructions = Register_To_Location(dst, leftreg, &ctx);
+    result.insert(result.end(), move_dest_instructions.begin(),
+                  move_dest_instructions.end());
+    return result;
+}
+
+[[nodiscard]] std::vector<Instruction>
+InstructionForArth(ast::BinOpKind kind,  Location dst, qa_ir::Value left,
+                   qa_ir::Variable right, Ctx &ctx) {
+    const auto leftreg = ctx.NewRegister(SizeOf(left));
+    std::vector<Instruction> result = ctx.toLocation(leftreg, left);
+    const auto rightreg = ctx.NewRegister(SizeOf(right));
+    const auto rightRegister = ctx.toLocation(rightreg, right);
+    result.insert(result.end(), rightRegister.begin(), rightRegister.end());
+    const auto arth_instruction =
+        __Create_Arth_Instruction(kind, leftreg, rightreg);
+    result.push_back(arth_instruction);
+    if (kind == ast::BinOpKind::Eq) {
+        auto newReg = ctx.NewRegister(4) ;
+        result.push_back(SetAl{.dst = newReg});
+        const auto move_dest_instructions = Register_To_Location(dst, newReg, &ctx);
+        result.insert(result.end(), move_dest_instructions.begin(),
+                      move_dest_instructions.end());
+        return result;
+    }
+    const auto move_dest_instructions = Register_To_Location(dst, leftreg, &ctx);
+    result.insert(result.end(), move_dest_instructions.begin(),
+                  move_dest_instructions.end());
+    return result;
 }
 
 [[nodiscard]] std::vector<Instruction> LowerArth(ast::BinOpKind kind,
@@ -175,46 +253,17 @@ std::vector<Instruction> Ctx::toLocation(Location l, qa_ir::Value v) {
         qa_ir::Value left,
         qa_ir::Value right, Ctx &ctx) {
     const auto dest = ctx.AllocateNew(dst);
-    const auto leftreg = ctx.NewRegister(SizeOf(left));
-    std::vector<Instruction> result = ctx.toLocation(leftreg, left);
     if (std::holds_alternative<int>(right)) {
         const int value = std::get<int>(right);
-        const auto arth_instruction =
-            __Create_Arth_Instruction(kind, leftreg, value);
-        result.push_back(arth_instruction);
-        const auto move_dest_instructions =
-            Register_To_Location(dest, leftreg, &ctx);
-        result.insert(result.end(), move_dest_instructions.begin(),
-                      move_dest_instructions.end());
-        return result;
+        return   InstructionForArth(kind, dest, left, value, ctx);
     }
     if (std::holds_alternative<qa_ir::Temp>(right)) {
-        const auto rightreg = ctx.NewRegister(SizeOf(right));
-        const auto rightRegister =
-            ctx.toLocation(rightreg, std::get<qa_ir::Temp>(right));
-        result.insert(result.end(), rightRegister.begin(), rightRegister.end());
-        const auto add_instruction =
-            __Create_Arth_Instruction(kind, leftreg, rightreg);
-        result.push_back(add_instruction);
-        const auto move_dest_instructions =
-            Register_To_Location(dest, leftreg, &ctx);
-        result.insert(result.end(), move_dest_instructions.begin(),
-                      move_dest_instructions.end());
-        return result;
+        const auto r = std::get<qa_ir::Temp>(right);
+        return  InstructionForArth(kind, dest, left, r, ctx);
     }
     if (std::holds_alternative<qa_ir::Variable>(right)) {
-        const auto rightreg = ctx.NewRegister(SizeOf(right));
-        const auto rightRegister =
-            ctx.toLocation(rightreg, std::get<qa_ir::Variable>(right));
-        result.insert(result.end(), rightRegister.begin(), rightRegister.end());
-        const auto add_instruction =
-            __Create_Arth_Instruction(kind, leftreg, rightreg);
-        result.push_back(add_instruction);
-        const auto move_dest_instructions =
-            Register_To_Location(dest, leftreg, &ctx);
-        result.insert(result.end(), move_dest_instructions.begin(),
-                      move_dest_instructions.end());
-        return result;
+        const auto variable = std::get<qa_ir::Variable>(right);
+        return InstructionForArth(kind, dest, left, variable, ctx);
     }
     throw std::runtime_error("LowerAddInstruction not implemented");
 }
@@ -233,6 +282,9 @@ LowerInstruction(const qa_ir::Operation &op, Ctx &ctx) {
                              ctx);
         } else if constexpr (std::is_same_v<T, qa_ir::Sub>) {
             return LowerArth(ast::BinOpKind::Sub, arg.dst, arg.left, arg.right,
+                             ctx);
+        } else if constexpr (std::is_same_v<T, qa_ir::Equal>) {
+            return LowerArth(ast::BinOpKind::Eq, arg.dst, arg.left, arg.right,
                              ctx);
         } else {
             throw std::runtime_error(

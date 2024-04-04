@@ -24,6 +24,7 @@ void MoveInstruction(const target::Mov mov, Ctx &ctx) {
 }
 
 void generateASMForInstruction(const target::Instruction &is, Ctx &ctx) {
+    // std::cout << "codegen for " << is << std::endl;
     if (std::holds_alternative<target::Mov>(is)) {
         MoveInstruction(std::get<target::Mov>(is), ctx);
     } else if (std::holds_alternative<target::Jump>(is)) {
@@ -78,6 +79,22 @@ void generateASMForInstruction(const target::Instruction &is, Ctx &ctx) {
         const auto src = std::get<target::HardcodedRegister>(sub.src);
         ctx.AddInstruction("sub " + target::to_asm(dst.reg, dst.size) + ", " +
                            target::to_asm(src.reg, src.size));
+    } else if (std::holds_alternative<target::Cmp>(is)) {
+        const auto cmp = std::get<target::Cmp>(is);
+        const auto left = std::get<target::HardcodedRegister>(cmp.dst);
+        const auto right = std::get<target::HardcodedRegister>(cmp.src);
+        ctx.AddInstruction("cmp " + target::to_asm(left.reg, left.size) + ", " +
+                           target::to_asm(right.reg, right.size));
+    } else if (std::holds_alternative<target::CmpI>(is)) {
+        const auto cmpI = std::get<target::CmpI>(is);
+        const auto left = std::get<target::HardcodedRegister>(cmpI.dst);
+        ctx.AddInstruction("cmp " + target::to_asm(left.reg, left.size) + ", " +
+                           std::to_string(cmpI.value));
+    } else if (std::holds_alternative<target::SetAl>(is)) {
+        const auto setAl = std::get<target::SetAl>(is);
+        ctx.AddInstruction("sete al");
+        const auto dst = std::get<target::HardcodedRegister>(setAl.dst);
+        ctx.AddInstruction("movzx " + target::to_asm(dst.reg, dst.size) + ", al");
     } else {
         throw std::runtime_error("Unsupported instruction type" +
                                  std::to_string(is.index()));

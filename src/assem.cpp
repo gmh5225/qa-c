@@ -45,11 +45,18 @@ Value GenerateIRForRhs(std::vector<Operation> &ins, const ast::Node *node,
             auto binop_instruction = Add{.dst = dst, .left = lhs, .right = rhs};
             ins.push_back(binop_instruction);
             return dst;
-        }
-        if (node->binOpKind == ast::BinOpKind::Sub) {
+        } else if (node->binOpKind == ast::BinOpKind::Sub) {
             auto binop_instruction = Sub{.dst = dst, .left = lhs, .right = rhs};
             ins.push_back(binop_instruction);
             return dst;
+        } else if (node->binOpKind == ast::BinOpKind::Eq) {
+            auto binop_instruction = Equal{.dst = dst, .left = lhs, .right = rhs};
+            ins.push_back(binop_instruction);
+            return dst;
+        } else {
+            throw std::runtime_error(
+                "GenerateIRForRhs not implemented for binop: " +
+                std::to_string(static_cast<int>(node->binOpKind)));
         }
         return dst;
     }

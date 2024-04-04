@@ -66,7 +66,7 @@ using Register = std::variant<HardcodedRegister, VirtualRegister>;
 bool operator<(const Register &lhs, const Register &rhs);
 
 using Location = std::variant<Register, StackLocation>;
-
+int SizeOf(const Location &loc);
 struct Mov {
     Register dst;
     Register src;
@@ -118,8 +118,24 @@ struct Sub {
     Register src;
 };
 
-using Instruction =
-    std::variant<Mov, LoadI, StoreI, Store, Load, Jump, AddI, Add, SubI, Sub>;
+struct Cmp {
+    // TODO: not really dest / src
+    Register dst;
+    Register src;
+};
+
+struct CmpI {
+    // TODO: not really dest..
+    Register dst;
+    int value;
+};
+
+struct SetAl {
+    Register dst;
+};
+
+using Instruction = std::variant<Mov, LoadI, StoreI, Store, Load, Jump, AddI,
+      Add, SubI, Sub, Cmp, CmpI, SetAl>;
 
 std::optional<int> get_src_virtual_id_if_present(const Instruction &ins);
 std::optional<int> get_dest_virtual_id_if_present(const Instruction &ins);

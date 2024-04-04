@@ -21,7 +21,7 @@ enum class NodeType {
     BinOp
 };
 
-enum class BinOpKind { Add, Sub };
+enum class BinOpKind { Add, Sub, Eq };
 
 struct DataType {
     std::string name;

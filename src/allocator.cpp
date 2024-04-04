@@ -17,8 +17,7 @@ struct Ctx {
     std::set<size_t> usedRegs = {};
     std::map<target::Register, target::BaseRegister> mapping = {};
 
-    target::BaseRegister getReg() {
-        std::cout << "get reg called" << std::endl;
+    [[nodiscard]] target::BaseRegister getReg() {
         size_t i = 0;
         for (const auto &reg : target::general_regs) {
             if (usedRegs.find(i) == usedRegs.end()) {
@@ -31,7 +30,6 @@ struct Ctx {
     }
 
     void freeReg(target::BaseRegister freedReg) {
-        std::cout << "free reg called" << std::endl;
         for (size_t i = 0; i < target::general_regs.size(); i++) {
             if (target::general_regs[i] == freedReg) {
                 usedRegs.erase(i);
@@ -153,7 +151,6 @@ void flag_register_pressure(std::map<int, int> firstUse,
     for (auto &i : frame.instructions) {
         idx += 1;
         auto operation = i;
-        std::cout << operation << std::endl;
         auto src_op = target::get_src_register(operation);
         if (src_op.has_value()) {
             auto src = src_op.value();
