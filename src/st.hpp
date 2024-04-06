@@ -14,18 +14,10 @@ class AssignmentExpression;
 class UnaryExpression;
 class AdditiveExpression;
 
-class Expression {
-  public:
-    Expression(std::unique_ptr<PrimaryExpression> expr);
-    Expression(std::unique_ptr<AssignmentExpression> expr);
-    Expression(std::unique_ptr<UnaryExpression> expr);
-    Expression(std::unique_ptr<AdditiveExpression> expr);
+using Expression = std::variant<
+                   std::unique_ptr<PrimaryExpression>, std::unique_ptr<AssignmentExpression>,
+                   std::unique_ptr<UnaryExpression>, std::unique_ptr<AdditiveExpression>>;
 
-    std::variant<
-    std::unique_ptr<PrimaryExpression>, std::unique_ptr<AssignmentExpression>,
-        std::unique_ptr<UnaryExpression>, std::unique_ptr<AdditiveExpression>>
-        expr;
-};
 inline std::ostream &operator<<(std::ostream &os, const Expression &node);
 
 enum class PrimaryExpressionType { INT, IDEN };
@@ -113,20 +105,19 @@ class UnaryExpression {
     Expression expr;
 };
 
-inline std::ostream &operator<<(std::ostream &os, const Expression &node) {
+inline std::ostream &operator<<(std::ostream &os, const Expression &expr) {
     os << "Expression(expr=";
-    if (std::holds_alternative<std::unique_ptr<PrimaryExpression>>(node.expr)) {
-        return std::get<std::unique_ptr<PrimaryExpression>>(node.expr)->print(os);
+    if (std::holds_alternative<std::unique_ptr<PrimaryExpression>>(expr)) {
+        return std::get<std::unique_ptr<PrimaryExpression>>(expr)->print(os);
     }
-    if (std::holds_alternative<std::unique_ptr<AssignmentExpression>>(
-                node.expr)) {
+    if (std::holds_alternative<std::unique_ptr<AssignmentExpression>>(expr)) {
         os << "AssignmentExpression(";
-        std::get<std::unique_ptr<AssignmentExpression>>(node.expr).get()->print(os);
+        std::get<std::unique_ptr<AssignmentExpression>>(expr).get()->print(os);
         os << ")";
     }
-    if (std::holds_alternative<std::unique_ptr<UnaryExpression>>(node.expr)) {
+    if (std::holds_alternative<std::unique_ptr<UnaryExpression>>(expr)) {
         os << "UnaryExpression(";
-        std::get<std::unique_ptr<UnaryExpression>>(node.expr).get()->print(os);
+        std::get<std::unique_ptr<UnaryExpression>>(expr).get()->print(os);
         os << ")";
     }
     return os << ")";
@@ -329,6 +320,30 @@ class ExpressionStatement {
     Expression expr;
 };
 
+struct CompoundStatement;
+
+class SelectionStatement {
+  public:
+    explicit SelectionStatement(Expression cond,
+                                std::unique_ptr<CompoundStatement> then,
+                                std::unique_ptr<CompoundStatement> else_);
+
+    std::ostream &print(std::ostream &os) const {
+        os << "SelectionStatement(cond=";
+        os << cond;
+        os << ", then=";
+        os << then;
+        os << ", else=";
+        os << else_;
+        os << ")";
+        return os;
+    }
+
+    Expression cond;
+    std::unique_ptr<CompoundStatement> then;
+    std::unique_ptr<CompoundStatement> else_;
+};
+
 class ReturnStatement {
   public:
     explicit ReturnStatement(Expression expr) : expr(std::move(expr)) {}
@@ -345,27 +360,31 @@ class ReturnStatement {
 class Statement {
   public:
     explicit Statement(std::variant<std::unique_ptr<ExpressionStatement>,
-                       std::unique_ptr<ReturnStatement>>
-                       stmt)
-        : stmt(std::move(stmt)) {}
+                       std::unique_ptr<ReturnStatement>,
+                       std::unique_ptr<SelectionStatement>>
+                       stmt);
 
-    explicit Statement(std::unique_ptr<ExpressionStatement> node)
-        : stmt(std::variant<std::unique_ptr<ExpressionStatement>,
-               std::unique_ptr<ReturnStatement>>(std::move(node))) {}
+    explicit Statement(std::unique_ptr<ExpressionStatement> node);
 
-    explicit Statement(std::unique_ptr<ReturnStatement> node)
-        : stmt(std::variant<std::unique_ptr<ExpressionStatement>,
-               std::unique_ptr<ReturnStatement>>(std::move(node))) {}
+    explicit Statement(std::unique_ptr<ReturnStatement> node);
+
+    explicit Statement(std::unique_ptr<SelectionStatement> node);
 
     std::variant<std::unique_ptr<ExpressionStatement>,
-    std::unique_ptr<ReturnStatement>>
-                                   stmt;
+        std::unique_ptr<ReturnStatement>,
+        std::unique_ptr<SelectionStatement>>
+        stmt;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Statement &node) {
     if (std::holds_alternative<std::unique_ptr<ExpressionStatement>>(node.stmt)) {
         os << "Statement(ExpressionStatement(";
         return std::get<std::unique_ptr<ExpressionStatement>>(node.stmt)->print(os)
+               << "))";
+    }
+    if (std::holds_alternative<std::unique_ptr<SelectionStatement>>(node.stmt)) {
+        os << "Statement(SelectionStatement(";
+        return std::get<std::unique_ptr<SelectionStatement>>(node.stmt)->print(os)
                << "))";
     }
     os << "Statement(ReturnStatement(";
@@ -375,12 +394,10 @@ inline std::ostream &operator<<(std::ostream &os, const Statement &node) {
 
 class BlockItem {
   public:
-    explicit BlockItem(std::variant<Declaration, Statement> item)
-        : item(std::move(item)) {}
-    explicit BlockItem(Declaration item)
-        : item(std::variant<Declaration, Statement>(std::move(item))) {}
-    explicit BlockItem(Statement item)
-        : item(std::variant<Declaration, Statement>(std::move(item))) {}
+    explicit BlockItem(std::variant<Declaration, Statement> item);
+
+    explicit BlockItem(Declaration item);
+    explicit BlockItem(Statement item);
 
     std::variant<Declaration, Statement> item;
 };

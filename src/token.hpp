@@ -35,6 +35,8 @@ enum TokType {
 
     // Keywords.
     TOKEN_RETURN,
+    TOKEN_IF,
+    TOKEN_ELSE,
     // Builtin types
     TOKEN_T_INT,
     TOKEN_T_INT_LIT,

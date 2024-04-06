@@ -87,21 +87,32 @@ std::unique_ptr<Node> makeNewBinOp(std::unique_ptr<ast::Node> lhs,
                                    BinOpKind kind) {
     auto node = std::make_unique<Node>();
     node->type = NodeType::BinOp;
-    if (lhs->type == NodeType::ConstInt && rhs->type == NodeType::ConstInt) {
-        switch (kind) {
-        case BinOpKind::Add:
-            return makeConstInt(lhs->value + rhs->value);
-        case BinOpKind::Sub:
-            return makeConstInt(lhs->value - rhs->value);
-        case BinOpKind::Eq:
-            return makeConstInt(lhs->value == rhs->value);
-        default:
-            throw std::runtime_error("Unknown BinOpKind");
-        }
-    }
+    // if (lhs->type == NodeType::ConstInt && rhs->type == NodeType::ConstInt) {
+    //     switch (kind) {
+    //     case BinOpKind::Add:
+    //         return makeConstInt(lhs->value + rhs->value);
+    //     case BinOpKind::Sub:
+    //         return makeConstInt(lhs->value - rhs->value);
+    //     case BinOpKind::Eq:
+    //         return makeConstInt(lhs->value == rhs->value);
+    //     default:
+    //         throw std::runtime_error("Unknown BinOpKind");
+    //     }
+    // }
     node->lhs = std::move(lhs);
     node->rhs = std::move(rhs);
     node->binOpKind = kind;
+    return node;
+}
+
+std::unique_ptr<Node> makeNewIfStmt(std::unique_ptr<ast::Node> condition,
+                                    std::vector<std::unique_ptr<ast::Node>> then,
+                                    std::vector<std::unique_ptr<ast::Node>> else_) {
+    auto node = std::make_unique<Node>();
+    node->type = NodeType::If;
+    node->condition = std::move(condition);
+    node->then = std::move(then);
+    node->else_ = std::move(else_);
     return node;
 }
 

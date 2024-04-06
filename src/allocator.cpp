@@ -107,32 +107,6 @@ remap(target::Frame &frame) {
     return remappedRegisters;
 }
 
-void flag_register_pressure(std::map<int, int> firstUse,
-                            std::map<int, int> lastUse, int instructions) {
-    int instructionsCurrentlyLive = 0;
-    int instructionsCurrentlyLiveMax = 0;
-    int instructionAtLiveMaxLocation = 0;
-    for (int instructionLocation = 0; instructionLocation < instructions;
-            instructionLocation++) {
-        for (const auto &entry : firstUse) {
-            const auto firstUseLocation = entry.second;
-            const auto lastUseLocation = lastUse[entry.first];
-            if (firstUseLocation == instructionLocation) {
-                instructionsCurrentlyLive += 1;
-            }
-            if (lastUseLocation == instructionLocation) {
-                instructionsCurrentlyLive -= 1;
-            }
-            if (instructionsCurrentlyLive > instructionsCurrentlyLiveMax) {
-                instructionsCurrentlyLiveMax = instructionsCurrentlyLive;
-                instructionAtLiveMaxLocation = instructionLocation;
-            }
-        }
-    }
-    std::cout << "Max instructions live at once: " << instructionsCurrentlyLiveMax
-              << " at instruction " << instructionAtLiveMaxLocation << std::endl;
-}
-
 [[nodiscard]] target::Frame rewrite(const target::Frame &frame, Ctx &ctx) {
     target::Frame newFrame = frame;
     const auto fl = getFirstUse(frame);
@@ -145,7 +119,6 @@ void flag_register_pressure(std::map<int, int> firstUse,
         firstUse[newReg.id] = std::min(firstUse[newReg.id], firstUse[prev.id]);
         lastUse[newReg.id] = std::max(lastUse[newReg.id], lastUse[prev.id]);
     }
-    flag_register_pressure(firstUse, lastUse, frame.instructions.size());
     std::vector<target::Instruction> newInstructions = {};
     int idx = 0;
     for (auto &i : frame.instructions) {

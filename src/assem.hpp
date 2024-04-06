@@ -15,10 +15,6 @@
 
 namespace qa_ir {
 
-struct Label {
-    std::string name;
-};
-
 struct Frame {
     std::string name;
     std::vector<Operation> instructions;

@@ -13,15 +13,20 @@ struct Ctx {
     bool __lvalueContext = false;
 
     std::unordered_map<std::string, ast::Node *> local_variables;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-parameter"
 
     void set_lvalueContext(std::string why, bool value) {
         // std::cout << "set_lvalueContext: " << why << " " << value << std::endl;
         __lvalueContext = value;
     }
+#pragma clang diagnostic pop
 };
 
 [[nodiscard]] std::unique_ptr<ast::Node> translate(const st::Expression &expr,
         Ctx &ctx);
+[[nodiscard]] static std::vector<std::unique_ptr<ast::Node>>
+        translate(st::CompoundStatement &stmts, Ctx &ctx);
 
 // primary
 [[nodiscard]] std::unique_ptr<ast::Node>
@@ -95,25 +100,24 @@ translate(const std::unique_ptr<st::AdditiveExpression> &expr, Ctx &ctx) {
 // expression
 [[nodiscard]] std::unique_ptr<ast::Node> translate(const st::Expression &expr,
         Ctx &ctx) {
-    const auto &e = expr.expr;
-    if (std::holds_alternative<std::unique_ptr<st::PrimaryExpression>>(e)) {
+    if (std::holds_alternative<std::unique_ptr<st::PrimaryExpression>>(expr)) {
         const auto &pe =
-            std::get<std::unique_ptr<st::PrimaryExpression>>(std::move(e));
+            std::get<std::unique_ptr<st::PrimaryExpression>>(std::move(expr));
         return translate(pe, ctx);
     }
-    if (std::holds_alternative<std::unique_ptr<st::AssignmentExpression>>(e)) {
+    if (std::holds_alternative<std::unique_ptr<st::AssignmentExpression>>(expr)) {
         const auto &ae =
-            std::get<std::unique_ptr<st::AssignmentExpression>>(std::move(e));
+            std::get<std::unique_ptr<st::AssignmentExpression>>(std::move(expr));
         return translate(ae, ctx);
     }
-    if (std::holds_alternative<std::unique_ptr<st::UnaryExpression>>(e)) {
+    if (std::holds_alternative<std::unique_ptr<st::UnaryExpression>>(expr)) {
         const auto &ue =
-            std::get<std::unique_ptr<st::UnaryExpression>>(std::move(e));
+            std::get<std::unique_ptr<st::UnaryExpression>>(std::move(expr));
         return translate(ue, ctx);
     }
-    if (std::holds_alternative<std::unique_ptr<st::AdditiveExpression>>(e)) {
+    if (std::holds_alternative<std::unique_ptr<st::AdditiveExpression>>(expr)) {
         const auto &ae =
-            std::get<std::unique_ptr<st::AdditiveExpression>>(std::move(e));
+            std::get<std::unique_ptr<st::AdditiveExpression>>(std::move(expr));
         return translate(ae, ctx);
     }
     throw std::runtime_error("translate(const st::Expression &expr, Ctx &ctx)");
@@ -134,6 +138,32 @@ translate(const std::unique_ptr<st::ReturnStatement> &stmt, Ctx &ctx) {
 [[nodiscard]] std::unique_ptr<ast::Node>
 translate(const std::unique_ptr<st::ExpressionStatement> &stmt, Ctx &ctx) {
     return translate(stmt->expr, ctx);
+}
+
+// selection statement statement
+[[nodiscard]] std::unique_ptr<ast::Node>
+translate(const std::unique_ptr<st::SelectionStatement> &stmt, Ctx &ctx) {
+    auto condition = translate(stmt->cond, ctx);
+    auto kind = condition->binOpKind;
+    if (kind != ast::BinOpKind::Eq) {
+        condition = ast::makeNewBinOp(std::move(condition), ast::makeConstInt(0),
+                                      ast::BinOpKind::Eq);
+        auto then = translate(*stmt->then, ctx);
+        // SWAP BECAUSE WE ARE DOING A NEQ
+        if (stmt->else_) {
+            auto else_ = translate(*stmt->else_, ctx);
+            return ast::makeNewIfStmt(std::move(condition), std::move(else_),
+                                      std::move(then));
+        }
+        return ast::makeNewIfStmt(std::move(condition), {}, std::move(then));
+    }
+    auto then = translate(*stmt->then, ctx);
+    if (stmt->else_) {
+        auto else_ = translate(*stmt->else_, ctx);
+        return ast::makeNewIfStmt(std::move(condition), std::move(then),
+                                  std::move(else_));
+    }
+    return ast::makeNewIfStmt(std::move(condition), std::move(then), {});
 }
 
 // declaration
@@ -179,7 +209,12 @@ translate(st::ParamTypeList &params) {
         } else if constexpr (std::is_same_v<
                              T, std::unique_ptr<st::ExpressionStatement>>) {
             return translate(std::move(arg), ctx);
-        } else {
+        } else if constexpr (std::is_same_v<
+                             T, std::unique_ptr<st::SelectionStatement>>) {
+            return translate(std::move(arg), ctx);
+        }
+
+        else {
             throw std::runtime_error(
                 "translate(const st::Statement &stmt, Ctx &ctx)");
         }

@@ -26,7 +26,16 @@ struct Ctx {
         const auto size = node->variableType.size;
         return Variable{name, variableUsage[name], size};
     }
+
+    Label newLabel() {
+        auto label = "L" + std::to_string(labelCounter);
+        labelCounter++;
+        return Label{label};
+    }
 };
+
+void MunchStmt(std::vector<Operation> &ins,
+               const std::unique_ptr<ast::Node> &node, Ctx &ctx);
 
 Value GenerateIRForRhs(std::vector<Operation> &ins, const ast::Node *node,
                        Ctx &ctx) {
@@ -88,6 +97,50 @@ void GenerateIRForMovNode(std::vector<Operation> &ins,
     }
 }
 
+ConditionalJump GenerateConditionalIR(std::vector<Operation> &ins,
+                                      const std::unique_ptr<ast::Node> &condition, Ctx &ctx) {
+    std::vector<Operation> instructions;
+    auto then_label = ctx.newLabel();
+    auto else_label = ctx.newLabel();
+    if (condition->binOpKind == ast::BinOpKind::Eq) {
+        auto lhs = GenerateIRForRhs(instructions, condition->lhs.get(), ctx);
+        auto rhs = GenerateIRForRhs(instructions, condition->rhs.get(), ctx);
+        auto cmp_instruction = Compare{.left = lhs, .right = rhs};
+        instructions.push_back(cmp_instruction);
+        auto conditional_jump_instruction =
+            ConditionalJump{.trueLabel = then_label, .falseLabel = else_label};
+        instructions.push_back(conditional_jump_instruction);
+        ins.insert(ins.end(), instructions.begin(), instructions.end());
+        return conditional_jump_instruction;
+    }
+    throw std::runtime_error(
+        "GenerateConditionalIR not implemented for binop: " +
+        std::to_string(static_cast<int>(condition->binOpKind)));
+}
+
+void GenerateIRForIf(std::vector<Operation> &ins,
+                     const std::unique_ptr<ast::Node> &node, Ctx &ctx) {
+    auto conditionalJump = GenerateConditionalIR(ins, node->condition, ctx);
+    auto then_label = conditionalJump.trueLabel;
+    auto else_label = conditionalJump.falseLabel;
+    auto then_instructions = std::vector<Operation> {};
+    for (const auto &stmt : node->then) {
+        MunchStmt(then_instructions, stmt, ctx);
+    }
+    auto else_instructions = std::vector<Operation> {};
+    for (const auto &stmt : node->else_) {
+        MunchStmt(else_instructions, stmt, ctx);
+    }
+    auto then_jump_instruction = LabelDef{.label = then_label};
+    ins.push_back(then_jump_instruction);
+    ins.insert(ins.end(), then_instructions.begin(), then_instructions.end());
+    auto else_jump_instruction = LabelDef{.label = else_label};
+    ins.push_back(else_jump_instruction);
+    if (else_instructions.size() > 0) {
+        ins.insert(ins.end(), else_instructions.begin(), else_instructions.end());
+    }
+}
+
 void MunchStmt(std::vector<Operation> &ins,
                const std::unique_ptr<ast::Node> &node, Ctx &ctx) {
     switch (node->type) {
@@ -97,6 +150,10 @@ void MunchStmt(std::vector<Operation> &ins,
     }
     case ast::NodeType::Move: {
         GenerateIRForMovNode(ins, node, ctx);
+        return;
+    }
+    case ast::NodeType::If: {
+        GenerateIRForIf(ins, node, ctx);
         return;
     }
     default:

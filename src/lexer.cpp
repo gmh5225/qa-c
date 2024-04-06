@@ -19,6 +19,8 @@ std::string source;
 std::unordered_map<std::string, TokType> keywords = {
     {"return", TokType::TOKEN_RETURN},
     {"int", TokType::TOKEN_T_INT},
+    {"else", TokType::TOKEN_ELSE},
+    {"if", TokType::TOKEN_IF}
 };
 
 [[nodiscard]] bool isAtEnd() {

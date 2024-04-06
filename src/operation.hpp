@@ -8,6 +8,10 @@
 
 namespace qa_ir {
 
+struct Label {
+    std::string name;
+};
+
 struct Mov {
     Value dst;
     Value src;
@@ -50,14 +54,30 @@ struct StoreAddr {
     Value src;
 };
 
+struct Compare {
+    Value left;
+    Value right;
+};
+
 struct Equal {
     Value dst;
     Value left;
     Value right;
 };
 
-using Operation =
-    std::variant<Mov, Ret, Add, Sub, MovR, Addr, Deref, StoreAddr, Equal>;
+struct ConditionalJump {
+    Label trueLabel;
+    Label falseLabel;
+};
+
+std::ostream &operator<<(std::ostream &os, const Label &label);
+
+struct LabelDef {
+    Label label;
+};
+
+using Operation = std::variant<Mov, Ret, Add, Sub, MovR, Addr, Deref, StoreAddr,
+      Compare, Equal, ConditionalJump, LabelDef>;
 
 std::ostream &operator<<(std::ostream &os, const Operation &ins);
 

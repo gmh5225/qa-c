@@ -98,6 +98,10 @@ struct Jump {
     std::string label;
 };
 
+struct JumpEq {
+    std::string label;
+};
+
 struct AddI {
     Register dst;
     int value;
@@ -134,8 +138,13 @@ struct SetAl {
     Register dst;
 };
 
-using Instruction = std::variant<Mov, LoadI, StoreI, Store, Load, Jump, AddI,
-      Add, SubI, Sub, Cmp, CmpI, SetAl>;
+struct Label {
+    std::string name;
+};
+
+using Instruction =
+    std::variant<Mov, LoadI, StoreI, Store, Load, Jump, AddI, Add, SubI, Sub,
+    Cmp, CmpI, SetAl, Label, JumpEq>;
 
 std::optional<int> get_src_virtual_id_if_present(const Instruction &ins);
 std::optional<int> get_dest_virtual_id_if_present(const Instruction &ins);

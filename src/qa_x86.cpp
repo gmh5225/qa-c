@@ -147,6 +147,12 @@ std::ostream &operator<<(std::ostream &os, const Instruction &ins) {
     } else if (std::holds_alternative<Cmp>(ins)) {
         const auto cmp = std::get<Cmp>(ins);
         os << "cmp " << cmp.dst << " -> " << cmp.src;
+    } else if (std::holds_alternative<Label>(ins)) {
+        const auto label = std::get<Label>(ins);
+        os << label.name << ":";
+    } else if (std::holds_alternative<JumpEq>(ins)) {
+        const auto jumpEq = std::get<JumpEq>(ins);
+        os << "je " << jumpEq.label;
     } else {
         throw std::runtime_error("Unsupported instruction type");
     }

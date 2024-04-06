@@ -11,6 +11,7 @@
 [[nodiscard]] st::DirectDeclarator parseDirectDeclartor();
 [[nodiscard]] st::Declaration parseDeclaration();
 [[nodiscard]] static st::Declarator parseDeclarator();
+[[nodiscard]] st::CompoundStatement parseCompoundStatement();
 
 static unsigned long current = 0;
 std::vector<Token> g_tokens;
@@ -145,7 +146,8 @@ void consume(TokType typ) {
 
 [[nodiscard]] bool isStmtBegin(Token t) {
     return t.type == TokType::TOKEN_RETURN ||
-           t.type == TokType::TOKEN_IDENTIFIER || t.type == TokType::TOKEN_STAR;
+           t.type == TokType::TOKEN_IDENTIFIER || t.type == TokType::TOKEN_STAR ||
+           t.type == TokType::TOKEN_IF;
 }
 
 [[nodiscard]] std::unique_ptr<st::PrimaryExpression> parsePrimaryExpression() {
@@ -261,10 +263,35 @@ parseExpressionStatement() {
     return std::make_unique<st::ExpressionStatement>(std::move(expr));
 }
 
+[[nodiscard]] st::Statement parseStatement();
+
+[[nodiscard]] std::unique_ptr<st::SelectionStatement> parseIfStatement() {
+    consume(TokType::TOKEN_LEFT_PAREN);
+    auto expr = parseExpression();
+    consume(TokType::TOKEN_RIGHT_PAREN);
+    auto thenStmt = parseCompoundStatement();
+    auto thenStmtUnique =
+        std::make_unique<st::CompoundStatement>(std::move(thenStmt));
+    if (match(TokType::TOKEN_ELSE)) {
+        auto elseStmt = parseCompoundStatement();
+        auto elseStmtUnique =
+            std::make_unique<st::CompoundStatement>(std::move(elseStmt));
+        return std::make_unique<st::SelectionStatement>(
+                   std::move(expr), std::move(thenStmtUnique), std::move(elseStmtUnique));
+    }
+    return std::make_unique<st::SelectionStatement>(
+               std::move(expr), std::move(thenStmtUnique), nullptr);
+}
+
 [[nodiscard]] st::Statement parseStatement() {
     if (match(TokType::TOKEN_RETURN)) {
         auto ret = parseReturnStatement();
         return st::Statement(std::move(ret));
+    }
+    if (match(TokType::TOKEN_IF)) {
+        std::cout << "parsing if statement\n";
+        auto ifStmt = parseIfStatement();
+        return st::Statement(std::move(ifStmt));
     }
     auto expr = parseExpressionStatement();
     return st::Statement(std::move(expr));

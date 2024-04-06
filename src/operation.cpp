@@ -4,6 +4,11 @@
 
 namespace qa_ir {
 
+std::ostream &operator<<(std::ostream &os, const Label &label) {
+    os << label.name;
+    return os;
+}
+
 std::ostream &operator<<(std::ostream &os, const Operation &ins) {
     if (std::holds_alternative<Mov>(ins)) {
         const auto &mov = std::get<Mov>(ins);
@@ -32,6 +37,15 @@ std::ostream &operator<<(std::ostream &os, const Operation &ins) {
     } else if (std::holds_alternative<Equal>(ins)) {
         const auto &equal = std::get<Equal>(ins);
         os << "equal " << equal.dst << ", " << equal.left << ", " << equal.right;
+    } else if (std::holds_alternative<ConditionalJump>(ins)) {
+        const auto &cj = std::get<ConditionalJump>(ins);
+        os << "cj " << cj.trueLabel << ", " << cj.falseLabel;
+    } else if (std::holds_alternative<LabelDef>(ins)) {
+        const auto &label = std::get<LabelDef>(ins);
+        os << label.label << ":";
+    } else if (std::holds_alternative<Compare>(ins)) {
+        const auto &cmp = std::get<Compare>(ins);
+        os << "cmp " << cmp.left << ", " << cmp.right;
     } else {
         throw std::runtime_error("Unknown instruction type");
     }

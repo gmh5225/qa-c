@@ -18,11 +18,12 @@ enum class NodeType {
     MemWrite,
     MemRead,
     Addr,
-    BinOp
+    BinOp,
+    If
 };
 
 enum class BinOpKind { Add, Sub, Eq };
-
+enum class SelectionKind { If };
 struct DataType {
     std::string name;
     int size = 0;
@@ -95,6 +96,11 @@ class Node {
     // variable
     ast::DataType variableType;
 
+    // if
+    std::unique_ptr<Node> condition;
+    std::vector<std::unique_ptr<ast::Node>> then;
+    std::vector<std::unique_ptr<ast::Node>> else_;
+
     std::string VariableName() {
         if (type == NodeType::Var) {
             return variableName;
@@ -126,7 +132,10 @@ std::unique_ptr<Node> makeNewAddr(std::unique_ptr<ast::Node> expr);
 std::unique_ptr<Node> makeNewBinOp(std::unique_ptr<ast::Node> lhs,
                                    std::unique_ptr<ast::Node> rhs,
                                    BinOpKind kind);
-
+std::unique_ptr<Node>
+makeNewIfStmt(std::unique_ptr<ast::Node> condition,
+              std::vector<std::unique_ptr<ast::Node>> then,
+              std::vector<std::unique_ptr<ast::Node>> else_);
 inline std::ostream &operator<<(std::ostream &os, const Node &node);
 inline std::ostream &DebugFrame(std::ostream &os, const Node &node) {
     os << "Frame(name=" << node.functionName << ", params=[";
@@ -184,6 +193,17 @@ inline std::ostream &operator<<(std::ostream &os, const Node &node) {
         break;
     case NodeType::BinOp:
         os << "BinOp(" << *node.lhs << ", " << *node.rhs << ")";
+        break;
+    case NodeType::If:
+        os << "If(" << *node.condition << ", then=[";
+        for (const auto &n : node.then) {
+            os << *n << ", ";
+        }
+        os << "], else=[";
+        for (const auto &n : node.else_) {
+            os << *n << ", ";
+        }
+        os << "])";
         break;
     }
     return os;

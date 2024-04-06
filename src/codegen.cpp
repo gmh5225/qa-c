@@ -95,6 +95,12 @@ void generateASMForInstruction(const target::Instruction &is, Ctx &ctx) {
         ctx.AddInstruction("sete al");
         const auto dst = std::get<target::HardcodedRegister>(setAl.dst);
         ctx.AddInstruction("movzx " + target::to_asm(dst.reg, dst.size) + ", al");
+    } else if (std::holds_alternative<target::JumpEq>(is)) {
+        const auto jump = std::get<target::JumpEq>(is);
+        ctx.AddInstruction("je ." + jump.label);
+    } else if (std::holds_alternative<target::Label>(is)) {
+        const auto label = std::get<target::Label>(is);
+        ctx.AddInstructionNoIndent("." + label.name + ":");
     } else {
         throw std::runtime_error("Unsupported instruction type" +
                                  std::to_string(is.index()));
