@@ -97,6 +97,16 @@ translate(const std::unique_ptr<st::AdditiveExpression> &expr, Ctx &ctx) {
         "translate(const st::AdditiveExpression &expr, Ctx &ctx)");
 }
 
+[[nodiscard]] std::unique_ptr<ast::Node>
+translate(const std::unique_ptr<st::FunctionCallExpression> &expr, Ctx &ctx) {
+    std::vector<std::unique_ptr<ast::Node>> args;
+    for (const auto &arg : expr->args) {
+        auto e = translate(arg, ctx);
+        args.push_back(std::move(e));
+    }
+    return ast::makeNewCall(expr->name, std::move(args));
+}
+
 // expression
 [[nodiscard]] std::unique_ptr<ast::Node> translate(const st::Expression &expr,
         Ctx &ctx) {
@@ -119,6 +129,13 @@ translate(const std::unique_ptr<st::AdditiveExpression> &expr, Ctx &ctx) {
         const auto &ae =
             std::get<std::unique_ptr<st::AdditiveExpression>>(std::move(expr));
         return translate(ae, ctx);
+    }
+    if (std::holds_alternative<std::unique_ptr<st::FunctionCallExpression>>(
+                expr)) {
+        const auto &fce =
+            std::get<std::unique_ptr<st::FunctionCallExpression>>(std::move(expr));
+        std::vector<std::unique_ptr<ast::Node>> args;
+        return translate(fce, ctx);
     }
     throw std::runtime_error("translate(const st::Expression &expr, Ctx &ctx)");
 }
@@ -244,17 +261,17 @@ translate(st::CompoundStatement &stmts, Ctx &ctx) {
 
 [[nodiscard]] static std::unique_ptr<ast::Node> translate(st::FuncDef *fd,
         Ctx &ctx) {
-    const auto name = fd->Name();
+    const auto functionName = fd->Name();
     auto functionParams = fd->DirectDeclarator().params;
     auto params = translate(functionParams);
     for (const auto &p : params) {
-        const auto name = p.name;
+        const auto paramName = p.name;
         const auto type = p.type;
-        auto var = ast::makeNewVar(name, type);
+        auto var = ast::makeNewVar(paramName, type);
         ctx.local_variables[p.name] = var.get();
     }
     std::vector<std::unique_ptr<ast::Node>> body = translate(fd->body, ctx);
-    return ast::makeNewFunction(name, std::move(body), std::move(params));
+    return ast::makeNewFunction(functionName, std::move(body), std::move(params));
 }
 
 [[nodiscard]] static std::unique_ptr<ast::Node>

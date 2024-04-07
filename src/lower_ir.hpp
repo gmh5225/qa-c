@@ -16,6 +16,7 @@ struct Ctx {
     Register AllocateNewForTemp(qa_ir::Temp t);
     VirtualRegister NewRegister(int size);
     std::vector<Instruction> toLocation(Location l, qa_ir::Value v);
+    [[nodiscard]] int get_stack_offset() const;
 
   private:
     int tempCounter = 0;

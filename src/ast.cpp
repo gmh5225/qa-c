@@ -58,19 +58,25 @@ std::unique_ptr<Node> makeNewMove(std::unique_ptr<ast::Node> left,
 
 std::unique_ptr<Node> makeNewMemWrite(std::unique_ptr<ast::Node> expr) {
     auto node = std::make_unique<Node>();
-    node->type = NodeType::MemWrite;
+    node->type = NodeType::Deref;
     node->expr = std::move(expr);
     return node;
 }
 
 std::unique_ptr<Node> makeNewMemRead(std::unique_ptr<ast::Node> expr) {
     auto node = std::make_unique<Node>();
-    node->type = NodeType::MemRead;
+    node->type = NodeType::Deref;
     node->expr = std::move(expr);
+    node->derefDepth = 1;
     if (node->expr->type == NodeType::Addr) {
         node->type = node->expr->expr->type;
         // hack to copy, assumes that it is a variable. works now for nested stuff
         node->variableName = node->expr->expr->variableName;
+    }
+    if (node->expr->type == NodeType::Deref) {
+        auto result = std::move(node->expr);
+        result->derefDepth += 1;
+        return result;
     }
     return node;
 }
@@ -113,6 +119,16 @@ std::unique_ptr<Node> makeNewIfStmt(std::unique_ptr<ast::Node> condition,
     node->condition = std::move(condition);
     node->then = std::move(then);
     node->else_ = std::move(else_);
+    return node;
+}
+
+std::unique_ptr<Node> makeNewCall(std::string name, std::vector<std::unique_ptr<ast::Node>> args) {
+    auto node = std::make_unique<Node>();
+    node->type = NodeType::Call;
+    node->callName = name;
+    node->callArgs = std::move(args);
+    // TODO: obviously not it
+    node->returnType = DataType("int", 4, nullptr);
     return node;
 }
 

@@ -24,7 +24,7 @@ std::ostream &operator<<(std::ostream &os, const Operation &ins) {
         os << "sub " << sub.dst << ", " << sub.left << ", " << sub.right;
     } else if (std::holds_alternative<MovR>(ins)) {
         const auto &movr = std::get<MovR>(ins);
-        os << "mov " << movr.dst << ", " << movr.src;
+        os << "movr " << movr.dst << ", " << movr.src;
     } else if (std::holds_alternative<Addr>(ins)) {
         const auto &addr = std::get<Addr>(ins);
         os << "addr " << addr.dst << ", " << addr.src;
@@ -46,8 +46,28 @@ std::ostream &operator<<(std::ostream &os, const Operation &ins) {
     } else if (std::holds_alternative<Compare>(ins)) {
         const auto &cmp = std::get<Compare>(ins);
         os << "cmp " << cmp.left << ", " << cmp.right;
+    } else if (std::holds_alternative<Call>(ins)) {
+        const auto &call = std::get<Call>(ins);
+        os << "call " << call.name << ", ";
+        for (const auto &arg : call.args) {
+            os << arg << ", ";
+        }
+        os << call.dst;
+    } else if (std::holds_alternative<Addr>(ins)) {
+        const auto &addr = std::get<Addr>(ins);
+        os << "addr " << addr.dst << ", " << addr.src;
+    } else if (std::holds_alternative<Deref>(ins)) {
+        const auto &deref = std::get<Deref>(ins);
+        os << "deref " << deref.dst << ", " << deref.src;
+    } else if (std::holds_alternative<StoreAddr>(ins)) {
+        const auto &storeaddr = std::get<StoreAddr>(ins);
+        os << "storeaddr " << storeaddr.dst << ", " << storeaddr.src;
+    } else if (std::holds_alternative<DerefStore>(ins)) {
+        const auto &derefstore = std::get<DerefStore>(ins);
+        os << "derefstore " << derefstore.dst << ", " << derefstore.src;
     } else {
-        throw std::runtime_error("Unknown instruction type");
+        throw std::runtime_error("Unknown instruction type " +
+                                 std::to_string(ins.index()));
     }
     return os;
 }

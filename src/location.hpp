@@ -36,5 +36,6 @@ using Value =
 std::ostream &operator<<(std::ostream &os, const Value &v);
 
 [[nodiscard]] int SizeOf(Value v);
+[[nodiscard]] int SizeOfWhatItPointsTo(Value v);
 
 } // namespace qa_ir

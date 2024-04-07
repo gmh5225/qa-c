@@ -73,7 +73,7 @@ _Value_To_Location(StackLocation s_dst, qa_ir::Variable v_src, Ctx *ctx) {
 }
 
 [[nodiscard]] std::vector<Instruction>
-Register_To_Location(Location l, VirtualRegister reg, Ctx *ctx) {
+Register_To_Location(Location l, target::Register reg, Ctx *ctx) {
     if (auto stackLocation = std::get_if<StackLocation>(&l)) {
         return {Store{.dst = *stackLocation, .src = reg}};
     }
@@ -116,6 +116,10 @@ Register Ctx::AllocateNewForTemp(qa_ir::Temp t) {
 
 VirtualRegister Ctx::NewRegister(int size) {
     return VirtualRegister{.id = tempCounter++, .size = size};
+}
+
+int Ctx::get_stack_offset() const {
+    return stackOffset;
 }
 
 std::vector<Instruction> Ctx::toLocation(Location l, qa_ir::Value v) {
@@ -301,6 +305,91 @@ LowerConditionalJumpInstruction(qa_ir::ConditionalJump cj, Ctx &ctx) {
 }
 
 #pragma clang diagnostic pop
+
+[[nodiscard]] std::vector<Instruction> LowerCallInstruction(qa_ir::Call call,
+        Ctx &ctx) {
+    auto dest = ctx.AllocateNew(call.dst);
+    std::vector<Instruction> result;
+    for (size_t i = 0; i < call.args.size(); i++) {
+        const auto arg = call.args[i];
+        const auto argbase = target::param_regs[i];
+        const auto argsize = SizeOf(arg);
+        const auto argreg =
+            target::HardcodedRegister{.reg = argbase, .size = argsize};
+        auto argToParamRegInstructions = ctx.toLocation(argreg, arg);
+        result.insert(result.end(), argToParamRegInstructions.begin(),
+                      argToParamRegInstructions.end());
+    }
+    const auto returnValueSize = SizeOf(call.dst);
+    const auto returnRegister = HardcodedRegister{.reg = target::BaseRegister::AX,
+                                                  .size = returnValueSize};
+    result.push_back(Call{.name = call.name, .dst = returnRegister});
+    const auto move_dest_instructions =
+        Register_To_Location(dest, returnRegister, &ctx);
+    result.insert(result.end(), move_dest_instructions.begin(),
+                  move_dest_instructions.end());
+    return result;
+}
+
+[[nodiscard]] std::vector<Instruction> LowerMovRInstruction(qa_ir::MovR move,
+        Ctx &ctx) {
+    const auto dst = ctx.AllocateNew(move.dst);
+    return ctx.toLocation(dst, move.src);
+}
+
+[[nodiscard]] std::vector<Instruction> LowerAddrInstruction(qa_ir::Addr addr,
+        Ctx &ctx) {
+    std::vector<Instruction> result;
+    const auto temp = std::get<qa_ir::Temp>(addr.dst);
+    const auto variable = std::get<qa_ir::Variable>(addr.src);
+    const auto variableOffset = ctx.variable_offset[variable.name];
+    const auto reg = ctx.AllocateNewForTemp(temp);
+    result.push_back(
+              Lea{.dst = reg, .src = StackLocation{.offset = variableOffset}});
+    return result;
+}
+
+[[nodiscard]] std::vector<Instruction> LowerDerefInstruction(qa_ir::Deref deref,
+        Ctx &ctx) {
+    std::vector<Instruction> result;
+    const auto temp = std::get<qa_ir::Temp>(deref.dst);
+    const auto variable = std::get<qa_ir::Variable>(deref.src);
+    const auto variableOffset = ctx.variable_offset[variable.name];
+    const auto depth = deref.depth;
+    auto reg = ctx.NewRegister(8);
+    result.push_back(
+              Load{.dst = reg, .src = StackLocation{.offset = variableOffset}});
+    for (int i = 1; i < depth; i++) {
+        const auto tempreg = ctx.NewRegister(8);
+        result.push_back(IndirectLoad{.dst = tempreg, .src = reg});
+        reg = tempreg;
+    }
+    // indirect mem access
+    const auto finalDest = ctx.AllocateNewForTemp(temp);
+    result.push_back(IndirectLoad{.dst = finalDest, .src = reg});
+    return result;
+}
+
+[[nodiscard]] std::vector<Instruction>
+LowerDerefStoreInstruction(qa_ir::DerefStore deref, Ctx &ctx) {
+    std::vector<Instruction> result;
+    // variable_dest holds the address of the variable
+    const auto variable_dest = deref.dst;
+    // move the variable to a register
+    const auto tempregister = ctx.NewRegister(8);
+    auto moveInstructions = ctx.toLocation(tempregister, variable_dest);
+    result.insert(result.end(), moveInstructions.begin(), moveInstructions.end());
+    // load the value at the address
+    const auto src = deref.src;
+    const auto srcSize = SizeOf(src);
+    const auto srcReg = ctx.NewRegister(srcSize);
+    auto srcInstructions = ctx.toLocation(srcReg, src);
+    result.insert(result.end(), srcInstructions.begin(), srcInstructions.end());
+    // store the value at the address using indirect store instructions
+    result.push_back(IndirectStore{.dst = tempregister, .src = srcReg});
+    return result;
+}
+
 [[nodiscard]] std::vector<Instruction>
 LowerInstruction(const qa_ir::Operation &op, Ctx &ctx) {
     return std::visit(
@@ -326,6 +415,16 @@ LowerInstruction(const qa_ir::Operation &op, Ctx &ctx) {
         } else if constexpr (std::is_same_v<T, qa_ir::Compare>) {
             return LowerArth(ast::BinOpKind::Eq, std::nullopt, arg.left,
                              arg.right, ctx);
+        } else if constexpr (std::is_same_v<T, qa_ir::Call>) {
+            return LowerCallInstruction(arg, ctx);
+        } else if constexpr (std::is_same_v<T, qa_ir::MovR>) {
+            return LowerMovRInstruction(arg, ctx);
+        } else if constexpr (std::is_same_v<T, qa_ir::Addr>) {
+            return LowerAddrInstruction(arg, ctx);
+        } else if constexpr (std::is_same_v<T, qa_ir::Deref>) {
+            return LowerDerefInstruction(arg, ctx);
+        } else if constexpr (std::is_same_v<T, qa_ir::DerefStore>) {
+            return LowerDerefStoreInstruction(arg, ctx);
         } else {
             throw std::runtime_error(
                 "LowerInstruction not implemented for type: " +
@@ -345,7 +444,7 @@ LowerIR(const std::vector<qa_ir::Frame> &frames) {
             auto ins = LowerInstruction(op, ctx);
             instructions.insert(instructions.end(), ins.begin(), ins.end());
         }
-        auto new_frame = Frame{f.name, instructions};
+        auto new_frame = Frame{f.name, instructions, ctx.get_stack_offset()};
         result.push_back(new_frame);
     }
     return result;

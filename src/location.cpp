@@ -55,4 +55,11 @@ std::ostream &operator<<(std::ostream &os, const Value &v) {
     }
 }
 
+[[nodiscard]] int SizeOfWhatItPointsTo(Value v) {
+    if (std::holds_alternative<Variable>(v)) {
+        return std::get<Variable>(v).size;
+    }
+    throw std::runtime_error("Unknown value type");
+}
+
 } // namespace qa_ir

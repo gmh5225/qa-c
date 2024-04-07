@@ -1,5 +1,5 @@
 CC := clang++
-CXXFLAGS := -Wall -Wextra -Wnon-virtual-dtor -pedantic -Wold-style-cast -Wunused -Woverloaded-virtual -Wconversion -std=c++2b -g  
+CXXFLAGS := -Wall -Wextra -Wshadow -Weffc++ -Wreorder -Wmissing-declarations -Wextra-semi -Wsign-conversion	-Wswitch-default  -Wuninitialized -Wnull-dereference -Wdouble-promotion -Wnon-virtual-dtor -pedantic -Wunused-function -Wold-style-cast -Wunused -Woverloaded-virtual -Wconversion -std=c++2b -g  
 
 
 SRC_DIR := ./src
@@ -26,8 +26,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	$(CC) $(CXXFLAGS) -MMD -c $< -o $@
 
 lint:
-	clang-format -i $(SRC_FILES) $(HEADERS)
-	clang-tidy $(SRC_FILES) -- $(CXXFLAGS)
+	clang-tidy  $(SRC_FILES) -- $(CXXFLAGS)
 
 format:
 	astyle -xe --style=google --attach-return-type --align-pointer=name --indent=spaces=4 \

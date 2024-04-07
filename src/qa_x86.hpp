@@ -142,9 +142,30 @@ struct Label {
     std::string name;
 };
 
+struct Call {
+    std::string name;
+    Register dst;
+};
+
+struct Lea {
+    Register dst;
+    StackLocation src;
+};
+
+struct IndirectLoad {
+    Register dst;
+    Register src;
+};
+
+struct IndirectStore {
+    Register dst;
+    Register src;
+};
+
 using Instruction =
     std::variant<Mov, LoadI, StoreI, Store, Load, Jump, AddI, Add, SubI, Sub,
-    Cmp, CmpI, SetAl, Label, JumpEq>;
+    Cmp, CmpI, SetAl, Label, JumpEq, Call, Lea, IndirectLoad,
+    IndirectStore>;
 
 std::optional<int> get_src_virtual_id_if_present(const Instruction &ins);
 std::optional<int> get_dest_virtual_id_if_present(const Instruction &ins);

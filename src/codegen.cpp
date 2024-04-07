@@ -101,6 +101,31 @@ void generateASMForInstruction(const target::Instruction &is, Ctx &ctx) {
     } else if (std::holds_alternative<target::Label>(is)) {
         const auto label = std::get<target::Label>(is);
         ctx.AddInstructionNoIndent("." + label.name + ":");
+    } else if (std::holds_alternative<target::Call>(is)) {
+        const auto call = std::get<target::Call>(is);
+        ctx.AddInstruction("call " + call.name);
+    } else if (std::holds_alternative<target::Lea>(is)) {
+        const auto lea = std::get<target::Lea>(is);
+        const auto dst = std::get<target::HardcodedRegister>(lea.dst);
+        const auto dstsize = dst.size;
+        ctx.AddInstruction("lea " + target::to_asm(dst.reg, dstsize) + ", [rbp - " +
+                           std::to_string(lea.src.offset) + "]");
+    } else if (std::holds_alternative<target::IndirectLoad>(is)) {
+        const auto imao = std::get<target::IndirectLoad>(is);
+        const auto dst = std::get<target::HardcodedRegister>(imao.dst);
+        const auto src = std::get<target::HardcodedRegister>(imao.src);
+        const auto dstsize = dst.size;
+        const auto srcsize = src.size;
+        ctx.AddInstruction("mov " + target::to_asm(dst.reg, dstsize) + ", [" +
+                           target::to_asm(src.reg, srcsize) + "]");
+    } else if (std::holds_alternative<target::IndirectStore>(is)) {
+        const auto imao = std::get<target::IndirectStore>(is);
+        const auto dst = std::get<target::HardcodedRegister>(imao.dst);
+        const auto src = std::get<target::HardcodedRegister>(imao.src);
+        const auto dstsize = dst.size;
+        const auto srcsize = src.size;
+        ctx.AddInstruction("mov [" + target::to_asm(dst.reg, dstsize) + "], " +
+                           target::to_asm(src.reg, srcsize));
     } else {
         throw std::runtime_error("Unsupported instruction type" +
                                  std::to_string(is.index()));
@@ -115,8 +140,8 @@ void generateASMForFrame(const target::Frame &frame, Ctx &ctx) {
     ctx.AddInstructionNoIndent(frame.name + ":");
     ctx.AddInstruction("push rbp");
     ctx.AddInstruction("mov rbp, rsp");
-    // ctx.AddInstruction("sub rsp, " +
-    // std::to_string(sixteenByteAlign(frame.size)));
+    ctx.AddInstruction("sub rsp, " +
+                       std::to_string(sixteenByteAlign(frame.size)));
     for (const auto &is : frame.instructions) {
         try {
             generateASMForInstruction(is, ctx);

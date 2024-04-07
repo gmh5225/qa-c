@@ -47,6 +47,7 @@ struct Addr {
 struct Deref {
     Value dst;
     Value src;
+    int depth = 1;
 };
 
 struct StoreAddr {
@@ -70,14 +71,26 @@ struct ConditionalJump {
     Label falseLabel;
 };
 
+struct Call {
+    std::string name;
+    std::vector<Value> args;
+    Value dst;
+};
+
 std::ostream &operator<<(std::ostream &os, const Label &label);
 
 struct LabelDef {
     Label label;
 };
 
-using Operation = std::variant<Mov, Ret, Add, Sub, MovR, Addr, Deref, StoreAddr,
-      Compare, Equal, ConditionalJump, LabelDef>;
+struct DerefStore {
+    Value dst;
+    Value src;
+};
+
+using Operation =
+    std::variant<Mov, Ret, Add, Sub, MovR, Addr, Deref, StoreAddr, Compare,
+    Equal, ConditionalJump, LabelDef, Call, DerefStore>;
 
 std::ostream &operator<<(std::ostream &os, const Operation &ins);
 

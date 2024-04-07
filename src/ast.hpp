@@ -15,11 +15,11 @@ enum class NodeType {
     Jump,
     Return,
     Var,
-    MemWrite,
-    MemRead,
+    Deref,
     Addr,
     BinOp,
-    If
+    If,
+    Call
 };
 
 enum class BinOpKind { Add, Sub, Eq };
@@ -59,6 +59,13 @@ struct DataType {
             return *this;
         }
         return pointsTo->FinalPointsTo();
+    }
+
+    std::string ToString() const {
+        if (pointsTo == nullptr) {
+            return name;
+        }
+        return name + " -> " + pointsTo->ToString();
     }
 };
 
@@ -101,11 +108,18 @@ class Node {
     std::vector<std::unique_ptr<ast::Node>> then;
     std::vector<std::unique_ptr<ast::Node>> else_;
 
+    // call
+    std::string callName;
+    std::vector<std::unique_ptr<ast::Node>> callArgs;
+    ast::DataType returnType;
+
+    int derefDepth = 0;
+
     std::string VariableName() {
         if (type == NodeType::Var) {
             return variableName;
         }
-        if (type == NodeType::MemRead) {
+        if (type == NodeType::Deref) {
             return expr->VariableName();
         }
         throw std::runtime_error("VariableName not implemented for type: " +
@@ -136,6 +150,10 @@ std::unique_ptr<Node>
 makeNewIfStmt(std::unique_ptr<ast::Node> condition,
               std::vector<std::unique_ptr<ast::Node>> then,
               std::vector<std::unique_ptr<ast::Node>> else_);
+
+std::unique_ptr<Node> makeNewCall(std::string name,
+                                  std::vector<std::unique_ptr<ast::Node>> args);
+
 inline std::ostream &operator<<(std::ostream &os, const Node &node);
 inline std::ostream &DebugFrame(std::ostream &os, const Node &node) {
     os << "Frame(name=" << node.functionName << ", params=[";
@@ -176,11 +194,8 @@ inline std::ostream &operator<<(std::ostream &os, const Node &node) {
     case NodeType::Var:
         os << "Var(variableName=" << node.variableName << ")";
         break;
-    case NodeType::MemRead:
-        os << "MemRead(" << *node.expr << ")";
-        break;
-    case NodeType::MemWrite:
-        os << "MemWrite(" << *node.expr << ")";
+    case NodeType::Deref:
+        os << "Deref(" << *node.expr << ")";
         break;
     case NodeType::Addr:
         os << "Addr(" << *node.expr << ")";
@@ -201,6 +216,13 @@ inline std::ostream &operator<<(std::ostream &os, const Node &node) {
         }
         os << "], else=[";
         for (const auto &n : node.else_) {
+            os << *n << ", ";
+        }
+        os << "])";
+        break;
+    case NodeType::Call:
+        os << "Call(" << node.callName << ", args=[";
+        for (const auto &n : node.callArgs) {
             os << *n << ", ";
         }
         os << "])";

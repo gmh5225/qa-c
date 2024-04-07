@@ -30,4 +30,12 @@ BlockItem::BlockItem(std::variant<Declaration, Statement> item)
     : item(std::move(item)) {}
 BlockItem::BlockItem(Declaration item) : item(std::move(item)) {}
 BlockItem::BlockItem(Statement item) : item(std::move(item)) {}
+
+UnaryExpression::UnaryExpression(UnaryExpressionType _type, Expression p_expr)
+    : type(_type), expr(std::move(p_expr)) {}
+
+FunctionCallExpression::FunctionCallExpression(std::string name,
+        std::vector<Expression> args)
+    : name(std::move(name)), args(std::move(args)) {}
+
 } // namespace st

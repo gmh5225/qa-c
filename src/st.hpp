@@ -13,10 +13,12 @@ class PrimaryExpression;
 class AssignmentExpression;
 class UnaryExpression;
 class AdditiveExpression;
+class FunctionCallExpression;
 
 using Expression = std::variant<
                    std::unique_ptr<PrimaryExpression>, std::unique_ptr<AssignmentExpression>,
-                   std::unique_ptr<UnaryExpression>, std::unique_ptr<AdditiveExpression>>;
+                   std::unique_ptr<UnaryExpression>, std::unique_ptr<AdditiveExpression>,
+                   std::unique_ptr<FunctionCallExpression>>;
 
 inline std::ostream &operator<<(std::ostream &os, const Expression &node);
 
@@ -85,8 +87,7 @@ enum class UnaryExpressionType { DEREF, ADDR };
 
 class UnaryExpression {
   public:
-    UnaryExpression(UnaryExpressionType type, st::Expression p_expr)
-        : type(type), expr(std::move(p_expr)) {}
+    UnaryExpression(UnaryExpressionType type, Expression p_expr);
 
     std::ostream &print(std::ostream &os) {
         os << "UnaryExpression(type=";
@@ -122,6 +123,15 @@ inline std::ostream &operator<<(std::ostream &os, const Expression &expr) {
     }
     return os << ")";
 }
+
+class FunctionCallExpression {
+  public:
+    explicit FunctionCallExpression(std::string name,
+                                    std::vector<Expression> args);
+
+    std::string name;
+    std::vector<Expression> args;
+};
 
 class Initalizer {
   public:

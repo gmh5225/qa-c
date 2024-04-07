@@ -66,13 +66,13 @@ std::ostream &operator<<(std::ostream &os, BaseRegister reg) {
     case BaseRegister::DX:
         return size == 4 ? "edx" : "rdx";
     case BaseRegister::SI:
-        return "rsi";
+        return size == 4 ? "esi" : "rsi";
     case BaseRegister::DI:
-        return "rdi";
+        return size == 4 ? "edi" : "rdi";
     case BaseRegister::R8:
-        return "r8";
+        return size == 4 ? "r8d" : "r8";
     case BaseRegister::R9:
-        return "r9";
+        return size == 4 ? "r9d" : "r9";
     case BaseRegister::R10:
         return size == 4 ? "r10d" : "r10";
     case BaseRegister::R11:
@@ -153,6 +153,18 @@ std::ostream &operator<<(std::ostream &os, const Instruction &ins) {
     } else if (std::holds_alternative<JumpEq>(ins)) {
         const auto jumpEq = std::get<JumpEq>(ins);
         os << "je " << jumpEq.label;
+    } else if (std::holds_alternative<Call>(ins)) {
+        const auto call = std::get<Call>(ins);
+        os << "call " << call.name << " -> " << call.dst;
+    } else if (std::holds_alternative<Lea>(ins)) {
+        const auto lea = std::get<Lea>(ins);
+        os << "lea " << lea.src << " -> " << lea.dst;
+    } else if (std::holds_alternative<IndirectLoad>(ins)) {
+        const auto mem = std::get<IndirectLoad>(ins);
+        os << "mem " << mem.src << " -> " << mem.dst;
+    } else if (std::holds_alternative<IndirectStore>(ins)) {
+        const auto mem = std::get<IndirectStore>(ins);
+        os << "mov " << mem.src << " -> " << mem.dst;
     } else {
         throw std::runtime_error("Unsupported instruction type");
     }

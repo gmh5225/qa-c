@@ -12,6 +12,7 @@
 [[nodiscard]] st::Declaration parseDeclaration();
 [[nodiscard]] static st::Declarator parseDeclarator();
 [[nodiscard]] st::CompoundStatement parseCompoundStatement();
+[[nodiscard]] st::Expression parseExpression();
 
 static unsigned long current = 0;
 std::vector<Token> g_tokens;
@@ -120,6 +121,8 @@ void consume(TokType typ) {
             break;
         }
     }
+    if (match(TokType::TOKEN_RIGHT_PAREN)) {
+    }
     return st::ParamTypeList{.params = params, .va_args = false};
 }
 
@@ -191,6 +194,25 @@ void consume(TokType typ) {
     return false;
 }
 
+[[nodiscard]] st::Expression parsePostfixExpression() {
+    auto primary = parsePrimaryExpression();
+    if (match(TokType::TOKEN_LEFT_PAREN)) {
+        std::vector<st::Expression> args;
+        while (!match(TokType::TOKEN_RIGHT_PAREN)) {
+            auto expr = parseExpression();
+            args.push_back(std::move(expr));
+            if (match(TokType::TOKEN_COMMA) == false) {
+                break;
+            }
+        }
+        if (match(TokType::TOKEN_RIGHT_PAREN)) {
+        }
+        const auto name = primary.get()->idenValue;
+        return std::make_unique<st::FunctionCallExpression>(name, std::move(args));
+    }
+    return primary;
+}
+
 [[nodiscard]] st::Expression parseUnaryExpression() {
     if (match(TokType::TOKEN_STAR)) {
         auto expr = parseUnaryExpression();
@@ -202,7 +224,7 @@ void consume(TokType typ) {
         return std::make_unique<st::UnaryExpression>(st::UnaryExpressionType::ADDR,
                 std::move(expr));
     }
-    return parsePrimaryExpression();
+    return parsePostfixExpression();
 }
 
 [[nodiscard]] st::Expression parseAdditiveExpression() {

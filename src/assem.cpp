@@ -1,4 +1,4 @@
-
+#include <cassert>
 #include <map>
 #include <stdexcept>
 
@@ -20,11 +20,18 @@ struct Ctx {
     }
 
     Value AddVariable(const ast::Node *node) {
+        std::cout << "Adding variable: " << node->variableName << " of type "
+                  << node->variableType.ToString() << std::endl;
         auto name = node->variableName;
         variableUsage[name]++;
         variables[name] = node;
         const auto size = node->variableType.size;
         return Variable{name, variableUsage[name], size};
+    }
+
+    Value getVariable(const std::string &name) {
+        return Variable{name, variableUsage[name],
+                        variables[name]->variableType.size};
     }
 
     Label newLabel() {
@@ -44,7 +51,7 @@ Value GenerateIRForRhs(std::vector<Operation> &ins, const ast::Node *node,
         return node->value;
     }
     case ast::NodeType::Var: {
-        return ctx.AddVariable(node);
+        return ctx.getVariable(node->variableName);
     }
     case ast::NodeType::BinOp: {
         auto lhs = GenerateIRForRhs(ins, node->lhs.get(), ctx);
@@ -69,6 +76,37 @@ Value GenerateIRForRhs(std::vector<Operation> &ins, const ast::Node *node,
         }
         return dst;
     }
+    case ast::NodeType::Call: {
+        std::vector<Value> args;
+        for (const auto &arg : node->callArgs) {
+            args.push_back(GenerateIRForRhs(ins, arg.get(), ctx));
+        }
+        const auto returnSize = node->returnType.size;
+        auto dst = ctx.newTemp(returnSize);
+        auto call_instruction =
+            Call{.name = node->callName, .args = args, .dst = dst};
+        ins.push_back(call_instruction);
+        return dst;
+    }
+    case ast::NodeType::Addr: {
+        auto src = GenerateIRForRhs(ins, node->expr.get(), ctx);
+        auto dst = ctx.newTemp(8);
+        auto addr_instruction = Addr{.dst = dst, .src = src};
+        ins.push_back(addr_instruction);
+        return dst;
+    }
+    case ast::NodeType::Deref: {
+        auto src = GenerateIRForRhs(ins, node->expr.get(), ctx);
+        auto variable = std::get<Variable>(src);
+        const auto var = ctx.variables.at(variable.name);
+        const auto varDataType = var->variableType;
+        assert(varDataType.pointsTo != nullptr);
+        const auto depth = node->derefDepth;
+        auto dst = ctx.newTemp(varDataType.pointsTo->size);
+        auto deref_instruction = Deref{.dst = dst, .src = src, .depth = depth};
+        ins.push_back(deref_instruction);
+        return dst;
+    }
     default:
         throw std::runtime_error("GenerateIRForRhs not implemented for type: " +
                                  std::to_string(static_cast<int>(node->type)));
@@ -89,6 +127,12 @@ void GenerateIRForMovNode(std::vector<Operation> &ins,
         auto dst = ctx.AddVariable(node->lhs.get());
         auto mov_instruction = Mov{.dst = dst, .src = src};
         ins.push_back(mov_instruction);
+        return;
+    }
+    case ast::NodeType::Deref: {
+        auto dst = GenerateIRForRhs(ins, node->lhs->expr.get(), ctx);
+        auto deref_instruction = DerefStore{.dst = dst, .src = src};
+        ins.push_back(deref_instruction);
         return;
     }
     default:
@@ -156,6 +200,10 @@ void MunchStmt(std::vector<Operation> &ins,
         GenerateIRForIf(ins, node, ctx);
         return;
     }
+    case ast::NodeType::Call: {
+        auto dst = GenerateIRForRhs(ins, node.get(), ctx);
+        return;
+    }
     default:
         throw std::runtime_error("MunchStmt not implemented for type: " +
                                  std::to_string(static_cast<int>(node->type)));
@@ -176,6 +224,7 @@ Produce_IR(const std::vector<std::unique_ptr<ast::Node>> &nodes) {
         for (const auto &p : node->params) {
             // create a variable node for the paramter
             auto var = ast::makeNewVar(p.name, p.type);
+            std::cout << p.type.ToString() << std::endl;
             // create a stack location for the variable
             auto dst = ctx.AddVariable(var.get());
             const auto param_register = target::param_regs.at(idx);
@@ -184,8 +233,8 @@ Produce_IR(const std::vector<std::unique_ptr<ast::Node>> &nodes) {
             idx++;
         }
         auto body = std::move(node->body);
-        for (const auto &node : body) {
-            MunchStmt(instructions, node, ctx);
+        for (const auto &item : body) {
+            MunchStmt(instructions, item, ctx);
         }
         auto frame = Frame{name, instructions};
         frames.push_back(frame);
