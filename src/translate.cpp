@@ -81,17 +81,14 @@ translate(const std::unique_ptr<st::UnaryExpression> &expr, Ctx &ctx) {
 translate(const std::unique_ptr<st::AdditiveExpression> &expr, Ctx &ctx) {
     auto lhs = translate(expr->lhs, ctx);
     auto rhs = translate(expr->rhs, ctx);
-    if (expr->type == st::AdditiveExpressionType::ADD) {
-        return ast::makeNewBinOp(std::move(lhs), std::move(rhs),
-                                 ast::BinOpKind::Add);
-    }
-    if (expr->type == st::AdditiveExpressionType::SUB) {
-        return ast::makeNewBinOp(std::move(lhs), std::move(rhs),
-                                 ast::BinOpKind::Sub);
-    }
-    if (expr->type == st::AdditiveExpressionType::EQ) {
-        return ast::makeNewBinOp(std::move(lhs), std::move(rhs),
-                                 ast::BinOpKind::Eq);
+    std::unordered_map<st::AdditiveExpressionType, ast::BinOpKind> mp = {
+        {st::AdditiveExpressionType::ADD, ast::BinOpKind::Add},
+        {st::AdditiveExpressionType::SUB, ast::BinOpKind::Sub},
+        {st::AdditiveExpressionType::EQ, ast::BinOpKind::Eq},
+        {st::AdditiveExpressionType::GT, ast::BinOpKind::Gt},
+    };
+    if (mp.find(expr->type) != mp.end()) {
+        return ast::makeNewBinOp(std::move(lhs), std::move(rhs), mp[expr->type]);
     }
     throw std::runtime_error(
         "translate(const st::AdditiveExpression &expr, Ctx &ctx)");
@@ -162,7 +159,7 @@ translate(const std::unique_ptr<st::ExpressionStatement> &stmt, Ctx &ctx) {
 translate(const std::unique_ptr<st::SelectionStatement> &stmt, Ctx &ctx) {
     auto condition = translate(stmt->cond, ctx);
     auto kind = condition->binOpKind;
-    if (kind != ast::BinOpKind::Eq) {
+    if (kind != ast::BinOpKind::Eq && kind != ast::BinOpKind::Gt) {
         condition = ast::makeNewBinOp(std::move(condition), ast::makeConstInt(0),
                                       ast::BinOpKind::Eq);
         auto then = translate(*stmt->then, ctx);

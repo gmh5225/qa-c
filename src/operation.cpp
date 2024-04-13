@@ -37,8 +37,8 @@ std::ostream &operator<<(std::ostream &os, const Operation &ins) {
     } else if (std::holds_alternative<Equal>(ins)) {
         const auto &equal = std::get<Equal>(ins);
         os << "equal " << equal.dst << ", " << equal.left << ", " << equal.right;
-    } else if (std::holds_alternative<ConditionalJump>(ins)) {
-        const auto &cj = std::get<ConditionalJump>(ins);
+    } else if (std::holds_alternative<ConditionalJumpEqual>(ins)) {
+        const auto &cj = std::get<ConditionalJumpEqual>(ins);
         os << "cj " << cj.trueLabel << ", " << cj.falseLabel;
     } else if (std::holds_alternative<LabelDef>(ins)) {
         const auto &label = std::get<LabelDef>(ins);
@@ -65,11 +65,38 @@ std::ostream &operator<<(std::ostream &os, const Operation &ins) {
     } else if (std::holds_alternative<DerefStore>(ins)) {
         const auto &derefstore = std::get<DerefStore>(ins);
         os << "derefstore " << derefstore.dst << ", " << derefstore.src;
+    } else if (std::holds_alternative<GreaterThan>(ins)) {
+        const auto &gt = std::get<GreaterThan>(ins);
+        os << "gt " << gt.dst << ", " << gt.left << ", " << gt.right;
+    } else if (std::holds_alternative<ConditionalJumpGreater>(ins)) {
+        const auto &cj = std::get<ConditionalJumpGreater>(ins);
+        os << "cjg " << cj.trueLabel << ", " << cj.falseLabel;
     } else {
         throw std::runtime_error("Unknown instruction type " +
                                  std::to_string(ins.index()));
     }
     return os;
+}
+
+Label get_true_label(const CondJ &condj) {
+    if (std::holds_alternative<ConditionalJumpEqual>(condj)) {
+        return std::get<ConditionalJumpEqual>(condj).trueLabel;
+    } else if (std::holds_alternative<ConditionalJumpGreater>(condj)) {
+        return std::get<ConditionalJumpGreater>(condj).trueLabel;
+    } else {
+        throw std::runtime_error("Unknown conditional jump type " +
+                                 std::to_string(condj.index()));
+    }
+}
+Label get_false_label(const CondJ &condj) {
+    if (std::holds_alternative<ConditionalJumpEqual>(condj)) {
+        return std::get<ConditionalJumpEqual>(condj).falseLabel;
+    } else if (std::holds_alternative<ConditionalJumpGreater>(condj)) {
+        return std::get<ConditionalJumpGreater>(condj).falseLabel;
+    } else {
+        throw std::runtime_error("Unknown conditional jump type " +
+                                 std::to_string(condj.index()));
+    }
 }
 
 } // namespace qa_ir

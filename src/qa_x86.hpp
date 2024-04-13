@@ -94,6 +94,10 @@ struct Store {
     Register src;
 };
 
+struct JumpGreater {
+    std::string label;
+};
+
 struct Jump {
     std::string label;
 };
@@ -134,7 +138,11 @@ struct CmpI {
     int value;
 };
 
-struct SetAl {
+struct SetEAl {
+    Register dst;
+};
+
+struct SetGAl {
     Register dst;
 };
 
@@ -164,7 +172,7 @@ struct IndirectStore {
 
 using Instruction =
     std::variant<Mov, LoadI, StoreI, Store, Load, Jump, AddI, Add, SubI, Sub,
-    Cmp, CmpI, SetAl, Label, JumpEq, Call, Lea, IndirectLoad,
+    Cmp, CmpI, SetEAl, SetGAl, Label, JumpEq, Call, Lea, IndirectLoad, JumpGreater,
     IndirectStore>;
 
 std::optional<int> get_src_virtual_id_if_present(const Instruction &ins);

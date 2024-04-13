@@ -66,7 +66,18 @@ struct Equal {
     Value right;
 };
 
-struct ConditionalJump {
+struct GreaterThan {
+    Value dst;
+    Value left;
+    Value right;
+};
+
+struct ConditionalJumpEqual {
+    Label trueLabel;
+    Label falseLabel;
+};
+
+struct ConditionalJumpGreater {
     Label trueLabel;
     Label falseLabel;
 };
@@ -90,7 +101,13 @@ struct DerefStore {
 
 using Operation =
     std::variant<Mov, Ret, Add, Sub, MovR, Addr, Deref, StoreAddr, Compare,
-    Equal, ConditionalJump, LabelDef, Call, DerefStore>;
+    Equal, ConditionalJumpEqual,ConditionalJumpGreater, LabelDef, Call, DerefStore, GreaterThan>;
+
+using CondJ =
+    std::variant<ConditionalJumpEqual, ConditionalJumpGreater>;
+
+Label get_true_label(const CondJ &condj);
+Label get_false_label(const CondJ &condj);
 
 std::ostream &operator<<(std::ostream &os, const Operation &ins);
 

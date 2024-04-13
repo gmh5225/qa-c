@@ -162,6 +162,9 @@ std::vector<Instruction> Ctx::toLocation(Location l, qa_ir::Value v) {
     if (kind == ast::BinOpKind::Eq) {
         return {CmpI{.dst = left_reg, .value = value}};
     }
+    if (kind == ast::BinOpKind::Gt) {
+        return {CmpI{.dst = left_reg, .value = value}};
+    }
     throw std::runtime_error("CreateArthInstruction not implemented");
 }
 
@@ -175,6 +178,9 @@ std::vector<Instruction> Ctx::toLocation(Location l, qa_ir::Value v) {
         return {Sub{.dst = left_reg, .src = right_reg}};
     }
     if (kind == ast::BinOpKind::Eq) {
+        return {Cmp{.dst = left_reg, .src = right_reg}};
+    }
+    if (kind == ast::BinOpKind::Gt) {
         return {Cmp{.dst = left_reg, .src = right_reg}};
     }
     throw std::runtime_error("CreateArthInstruction not implemented");
@@ -191,7 +197,17 @@ std::vector<Instruction> appendInstructionsForMoveToDest(target::Location dst, s
 std::vector<Instruction> finishEqInstructions(std::optional<target::Location> dst, std::vector<Instruction> &result,
         Ctx &ctx) {
     auto newReg = ctx.NewRegister(4);
-    result.push_back(SetAl{.dst = newReg});
+    result.push_back(SetEAl{.dst = newReg});
+    if (!dst.has_value()) {
+        return result;
+    }
+    return appendInstructionsForMoveToDest(dst.value(), result, newReg, ctx);
+}
+
+std::vector<Instruction> finishGtInstructions(std::optional<target::Location> dst, std::vector<Instruction> &result,
+        Ctx &ctx) {
+    auto newReg = ctx.NewRegister(4);
+    result.push_back(SetGAl{.dst = newReg});
     if (!dst.has_value()) {
         return result;
     }
@@ -207,6 +223,9 @@ InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
     result.push_back(arth_instruction);
     if (kind == ast::BinOpKind::Eq) {
         return finishEqInstructions(dst, result, ctx);
+    }
+    if (kind == ast::BinOpKind::Gt) {
+        return finishGtInstructions(dst, result, ctx);
     }
     return appendInstructionsForMoveToDest(dst.value(), result, leftreg, ctx);
 }
@@ -225,6 +244,9 @@ InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
     if (kind == ast::BinOpKind::Eq) {
         return finishEqInstructions(dst, result, ctx);
     }
+    if (kind == ast::BinOpKind::Gt) {
+        return finishGtInstructions(dst, result, ctx);
+    }
     return appendInstructionsForMoveToDest(dst.value(), result, leftreg, ctx);
 }
 
@@ -242,9 +264,21 @@ InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
     if (kind == ast::BinOpKind::Eq) {
         return finishEqInstructions(dst, result, ctx);
     }
+    if (kind == ast::BinOpKind::Gt) {
+        return finishGtInstructions(dst, result, ctx);
+    }
     return appendInstructionsForMoveToDest(dst.value(), result, leftreg, ctx);
 }
-
+/**
+ *
+ * This functions 'switches' on the type (const/temp/var) of the
+ * right hand side of the binary operation
+ * If you think about emitting better code, you switch on both the left and right hand side.
+ * Instead of nesting, this calls overloaded functions that just pull
+ * the lhs to a register and then emit the instructions to perform the operation
+ * and move to the destination
+ *
+*/
 [[nodiscard]] std::vector<Instruction>
 LowerArth(ast::BinOpKind kind, std::optional<qa_ir::Value> dst,
           qa_ir::Value left, qa_ir::Value right, Ctx &ctx) {
@@ -276,9 +310,17 @@ LowerLabelDefInstruction(qa_ir::LabelDef label, Ctx &ctx) {
 }
 
 [[nodiscard]] std::vector<Instruction>
-LowerConditionalJumpInstruction(qa_ir::ConditionalJump cj, Ctx &ctx) {
+LowerConditionalJumpInstruction(qa_ir::ConditionalJumpEqual cj, Ctx &ctx) {
     std::vector<Instruction> result;
     result.push_back(JumpEq{.label = cj.trueLabel.name});
+    result.push_back(Jump{.label = cj.falseLabel.name});
+    return result;
+}
+
+[[nodiscard]] std::vector<Instruction>
+LowerConditionalJumpGreaterInstruction(qa_ir::ConditionalJumpGreater cj, Ctx &ctx) {
+    std::vector<Instruction> result;
+    result.push_back(JumpGreater{.label = cj.trueLabel.name});
     result.push_back(Jump{.label = cj.falseLabel.name});
     return result;
 }
@@ -389,8 +431,10 @@ LowerInstruction(const qa_ir::Operation &op, Ctx &ctx) {
                              ctx);
         } else if constexpr (std::is_same_v<T, qa_ir::LabelDef>) {
             return LowerLabelDefInstruction(arg, ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::ConditionalJump>) {
+        } else if constexpr (std::is_same_v<T, qa_ir::ConditionalJumpEqual>) {
             return LowerConditionalJumpInstruction(arg, ctx);
+        } else if constexpr (std::is_same_v<T, qa_ir::ConditionalJumpGreater>) {
+            return LowerConditionalJumpGreaterInstruction(arg, ctx);
         } else if constexpr (std::is_same_v<T, qa_ir::Compare>) {
             return LowerArth(ast::BinOpKind::Eq, std::nullopt, arg.left,
                              arg.right, ctx);
@@ -404,6 +448,9 @@ LowerInstruction(const qa_ir::Operation &op, Ctx &ctx) {
             return LowerDerefInstruction(arg, ctx);
         } else if constexpr (std::is_same_v<T, qa_ir::DerefStore>) {
             return LowerDerefStoreInstruction(arg, ctx);
+        } else if constexpr (std::is_same_v<T, qa_ir::GreaterThan>) {
+            return LowerArth(ast::BinOpKind::Gt, arg.dst, arg.left, arg.right,
+                             ctx);
         } else {
             throw std::runtime_error(
                 "LowerInstruction not implemented for type: " +

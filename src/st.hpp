@@ -45,7 +45,7 @@ class PrimaryExpression {
     std::string idenValue;
 };
 
-enum class AdditiveExpressionType { ADD, SUB, EQ, NEQ };
+enum class AdditiveExpressionType { ADD, SUB, GT, EQ, NEQ };
 
 class AdditiveExpression {
   public:

@@ -20,8 +20,6 @@ struct Ctx {
     }
 
     Value AddVariable(const ast::Node *node) {
-        std::cout << "Adding variable: " << node->variableName << " of type "
-                  << node->variableType.ToString() << std::endl;
         auto name = node->variableName;
         variableUsage[name]++;
         variables[name] = node;
@@ -67,6 +65,10 @@ Value GenerateIRForRhs(std::vector<Operation> &ins, const ast::Node *node,
             return dst;
         } else if (node->binOpKind == ast::BinOpKind::Eq) {
             auto binop_instruction = Equal{.dst = dst, .left = lhs, .right = rhs};
+            ins.push_back(binop_instruction);
+            return dst;
+        } else if (node->binOpKind == ast::BinOpKind::Gt) {
+            auto binop_instruction = GreaterThan{.dst = dst, .left = lhs, .right = rhs};
             ins.push_back(binop_instruction);
             return dst;
         } else {
@@ -140,19 +142,27 @@ void GenerateIRForMovNode(std::vector<Operation> &ins,
                                  std::to_string(static_cast<int>(node->lhs->type)));
     }
 }
-
-ConditionalJump GenerateConditionalIR(std::vector<Operation> &ins,
-                                      const std::unique_ptr<ast::Node> &condition, Ctx &ctx) {
+/*
+* Things like .. if (a) have already been converted to if (a == 0) with flipped then / else
+*/
+CondJ GenerateConditionalIR(std::vector<Operation> &ins,
+                            const std::unique_ptr<ast::Node> &condition, Ctx &ctx) {
     std::vector<Operation> instructions;
     auto then_label = ctx.newLabel();
     auto else_label = ctx.newLabel();
+    auto lhs = GenerateIRForRhs(instructions, condition->lhs.get(), ctx);
+    auto rhs = GenerateIRForRhs(instructions, condition->rhs.get(), ctx);
+    auto cmp_instruction = Compare{.left = lhs, .right = rhs};
+    instructions.push_back(cmp_instruction);
     if (condition->binOpKind == ast::BinOpKind::Eq) {
-        auto lhs = GenerateIRForRhs(instructions, condition->lhs.get(), ctx);
-        auto rhs = GenerateIRForRhs(instructions, condition->rhs.get(), ctx);
-        auto cmp_instruction = Compare{.left = lhs, .right = rhs};
-        instructions.push_back(cmp_instruction);
         auto conditional_jump_instruction =
-            ConditionalJump{.trueLabel = then_label, .falseLabel = else_label};
+            ConditionalJumpEqual{.trueLabel = then_label, .falseLabel = else_label};
+        instructions.push_back(conditional_jump_instruction);
+        ins.insert(ins.end(), instructions.begin(), instructions.end());
+        return conditional_jump_instruction;
+    }
+    if (condition->binOpKind == ast::BinOpKind::Gt) {
+        auto conditional_jump_instruction = ConditionalJumpGreater{.trueLabel = then_label, .falseLabel = else_label};
         instructions.push_back(conditional_jump_instruction);
         ins.insert(ins.end(), instructions.begin(), instructions.end());
         return conditional_jump_instruction;
@@ -165,8 +175,8 @@ ConditionalJump GenerateConditionalIR(std::vector<Operation> &ins,
 void GenerateIRForIf(std::vector<Operation> &ins,
                      const std::unique_ptr<ast::Node> &node, Ctx &ctx) {
     auto conditionalJump = GenerateConditionalIR(ins, node->condition, ctx);
-    auto then_label = conditionalJump.trueLabel;
-    auto else_label = conditionalJump.falseLabel;
+    auto then_label = get_true_label(conditionalJump);
+    auto else_label = get_false_label(conditionalJump);
     auto then_instructions = std::vector<Operation> {};
     for (const auto &stmt : node->then) {
         MunchStmt(then_instructions, stmt, ctx);

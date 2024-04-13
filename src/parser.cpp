@@ -242,15 +242,27 @@ void consume(TokType typ) {
     return lhs;
 }
 
-[[nodiscard]] st::Expression parseEqualityExpression() {
+[[nodiscard]] st::Expression parseRelationalExpression() {
     auto lhs = parseAdditiveExpression();
+    if (match(TOKEN_GREATER)) {
+        auto op_token = previous();
+        auto op = st::AdditiveExpressionType::GT;
+        auto rhs = parseAdditiveExpression();
+        return std::make_unique<st::AdditiveExpression>(std::move(lhs),
+                std::move(rhs), op);
+    }
+    return lhs;
+}
+
+[[nodiscard]] st::Expression parseEqualityExpression() {
+    auto lhs = parseRelationalExpression();
     if (match(TokType::TOKEN_EQUAL_EQUAL) || match(TokType::TOKEN_BANG_EQUAL)) {
         auto op_token = previous();
         auto op = st::AdditiveExpressionType::EQ;
         if (op_token.type == TokType::TOKEN_BANG_EQUAL) {
             op = st::AdditiveExpressionType::NEQ;
         }
-        auto rhs = parseAdditiveExpression();
+        auto rhs = parseRelationalExpression();
         return std::make_unique<st::AdditiveExpression>(std::move(lhs),
                 std::move(rhs), op);
     }
@@ -311,7 +323,6 @@ parseExpressionStatement() {
         return st::Statement(std::move(ret));
     }
     if (match(TokType::TOKEN_IF)) {
-        std::cout << "parsing if statement\n";
         auto ifStmt = parseIfStatement();
         return st::Statement(std::move(ifStmt));
     }

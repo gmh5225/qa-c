@@ -90,10 +90,10 @@ void generateASMForInstruction(const target::Instruction &is, Ctx &ctx) {
         const auto left = std::get<target::HardcodedRegister>(cmpI.dst);
         ctx.AddInstruction("cmp " + target::to_asm(left.reg, left.size) + ", " +
                            std::to_string(cmpI.value));
-    } else if (std::holds_alternative<target::SetAl>(is)) {
-        const auto setAl = std::get<target::SetAl>(is);
+    } else if (std::holds_alternative<target::SetEAl>(is)) {
+        const auto SetEAl = std::get<target::SetEAl>(is);
         ctx.AddInstruction("sete al");
-        const auto dst = std::get<target::HardcodedRegister>(setAl.dst);
+        const auto dst = std::get<target::HardcodedRegister>(SetEAl.dst);
         ctx.AddInstruction("movzx " + target::to_asm(dst.reg, dst.size) + ", al");
     } else if (std::holds_alternative<target::JumpEq>(is)) {
         const auto jump = std::get<target::JumpEq>(is);
@@ -126,6 +126,14 @@ void generateASMForInstruction(const target::Instruction &is, Ctx &ctx) {
         const auto srcsize = src.size;
         ctx.AddInstruction("mov [" + target::to_asm(dst.reg, dstsize) + "], " +
                            target::to_asm(src.reg, srcsize));
+    } else if (std::holds_alternative<target::JumpGreater>(is)) {
+        const auto jump = std::get<target::JumpGreater>(is);
+        ctx.AddInstruction("jg ." + jump.label);
+    } else if (std::holds_alternative<target::SetGAl>(is)) {
+        const auto SetGAl = std::get<target::SetGAl>(is);
+        ctx.AddInstruction("setg al");
+        const auto dst = std::get<target::HardcodedRegister>(SetGAl.dst);
+        ctx.AddInstruction("movzx " + target::to_asm(dst.reg, dst.size) + ", al");
     } else {
         throw std::runtime_error("Unsupported instruction type" +
                                  std::to_string(is.index()));

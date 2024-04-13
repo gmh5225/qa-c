@@ -22,7 +22,7 @@ enum class NodeType {
     Call
 };
 
-enum class BinOpKind { Add, Sub, Eq };
+enum class BinOpKind { Add, Sub, Eq, Gt };
 enum class SelectionKind { If };
 struct DataType {
     std::string name;

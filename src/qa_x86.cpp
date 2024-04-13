@@ -141,9 +141,9 @@ std::ostream &operator<<(std::ostream &os, const Instruction &ins) {
     } else if (std::holds_alternative<CmpI>(ins)) {
         const auto cmpI = std::get<CmpI>(ins);
         os << "cmpI " << cmpI.value << " to -> " << cmpI.dst;
-    } else if (std::holds_alternative<SetAl>(ins)) {
-        const auto setAl = std::get<SetAl>(ins);
-        os << "setAl " << setAl.dst;
+    } else if (std::holds_alternative<SetEAl>(ins)) {
+        const auto setAl = std::get<SetEAl>(ins);
+        os << "SetEAl " << setAl.dst;
     } else if (std::holds_alternative<Cmp>(ins)) {
         const auto cmp = std::get<Cmp>(ins);
         os << "cmp " << cmp.dst << " -> " << cmp.src;
@@ -165,6 +165,12 @@ std::ostream &operator<<(std::ostream &os, const Instruction &ins) {
     } else if (std::holds_alternative<IndirectStore>(ins)) {
         const auto mem = std::get<IndirectStore>(ins);
         os << "mov " << mem.src << " -> " << mem.dst;
+    } else if (std::holds_alternative<JumpGreater>(ins)) {
+        const auto jumpGreater = std::get<JumpGreater>(ins);
+        os << "jg " << jumpGreater.label;
+    } else if (std::holds_alternative<SetGAl>(ins)) {
+        const auto setAl = std::get<SetGAl>(ins);
+        os << "SetGAl " << setAl.dst;
     } else {
         throw std::runtime_error("Unsupported instruction type");
     }
