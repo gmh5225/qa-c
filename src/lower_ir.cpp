@@ -180,6 +180,24 @@ std::vector<Instruction> Ctx::toLocation(Location l, qa_ir::Value v) {
     throw std::runtime_error("CreateArthInstruction not implemented");
 }
 
+std::vector<Instruction> appendInstructionsForMoveToDest(target::Location dst, std::vector<Instruction> &result,
+        target::VirtualRegister value_reg,     Ctx &ctx) {
+    const auto move_dest_instructions = Register_To_Location(dst, value_reg, &ctx);
+    result.insert(result.end(), move_dest_instructions.begin(),
+                  move_dest_instructions.end());
+    return result;
+}
+
+std::vector<Instruction> finishEqInstructions(std::optional<target::Location> dst, std::vector<Instruction> &result,
+        Ctx &ctx) {
+    auto newReg = ctx.NewRegister(4);
+    result.push_back(SetAl{.dst = newReg});
+    if (!dst.has_value()) {
+        return result;
+    }
+    return appendInstructionsForMoveToDest(dst.value(), result, newReg, ctx);
+}
+
 [[nodiscard]] std::vector<Instruction>
 InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
                    qa_ir::Value left, int value, Ctx &ctx) {
@@ -188,22 +206,9 @@ InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
     auto arth_instruction = __Create_Arth_Instruction(kind, leftreg, value);
     result.push_back(arth_instruction);
     if (kind == ast::BinOpKind::Eq) {
-        auto newReg = ctx.NewRegister(4);
-        result.push_back(SetAl{.dst = newReg});
-        if (!dst.has_value()) {
-            return result;
-        }
-        const auto move_dest_instructions =
-            Register_To_Location(dst.value(), newReg, &ctx);
-        result.insert(result.end(), move_dest_instructions.begin(),
-                      move_dest_instructions.end());
-        return result;
+        return finishEqInstructions(dst, result, ctx);
     }
-    const auto move_dest_instructions =
-        Register_To_Location(dst.value(), leftreg, &ctx);
-    result.insert(result.end(), move_dest_instructions.begin(),
-                  move_dest_instructions.end());
-    return result;
+    return appendInstructionsForMoveToDest(dst.value(), result, leftreg, ctx);
 }
 
 [[nodiscard]] std::vector<Instruction>
@@ -218,22 +223,9 @@ InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
         __Create_Arth_Instruction(kind, leftreg, rightreg);
     result.push_back(arth_instruction);
     if (kind == ast::BinOpKind::Eq) {
-        auto newReg = ctx.NewRegister(4);
-        result.push_back(SetAl{.dst = newReg});
-        if (!dst.has_value()) {
-            return result;
-        }
-        const auto move_dest_instructions =
-            Register_To_Location(dst.value(), newReg, &ctx);
-        result.insert(result.end(), move_dest_instructions.begin(),
-                      move_dest_instructions.end());
-        return result;
+        return finishEqInstructions(dst, result, ctx);
     }
-    const auto move_dest_instructions =
-        Register_To_Location(dst.value(), leftreg, &ctx);
-    result.insert(result.end(), move_dest_instructions.begin(),
-                  move_dest_instructions.end());
-    return result;
+    return appendInstructionsForMoveToDest(dst.value(), result, leftreg, ctx);
 }
 
 [[nodiscard]] std::vector<Instruction>
@@ -248,22 +240,9 @@ InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
         __Create_Arth_Instruction(kind, leftreg, rightreg);
     result.push_back(arth_instruction);
     if (kind == ast::BinOpKind::Eq) {
-        auto newReg = ctx.NewRegister(4);
-        result.push_back(SetAl{.dst = newReg});
-        if (!dst.has_value()) {
-            return result;
-        }
-        const auto move_dest_instructions =
-            Register_To_Location(dst.value(), newReg, &ctx);
-        result.insert(result.end(), move_dest_instructions.begin(),
-                      move_dest_instructions.end());
-        return result;
+        return finishEqInstructions(dst, result, ctx);
     }
-    const auto move_dest_instructions =
-        Register_To_Location(dst.value(), leftreg, &ctx);
-    result.insert(result.end(), move_dest_instructions.begin(),
-                  move_dest_instructions.end());
-    return result;
+    return appendInstructionsForMoveToDest(dst.value(), result, leftreg, ctx);
 }
 
 [[nodiscard]] std::vector<Instruction>
