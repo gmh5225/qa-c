@@ -171,6 +171,12 @@ std::ostream &operator<<(std::ostream &os, const Instruction &ins) {
     } else if (std::holds_alternative<SetGAl>(ins)) {
         const auto setAl = std::get<SetGAl>(ins);
         os << "SetGAl " << setAl.dst;
+    } else if (std::holds_alternative<PushI>(ins)) {
+        const auto pushI = std::get<PushI>(ins);
+        os << "pushI " << pushI.src;
+    } else if (std::holds_alternative<Push>(ins)) {
+        const auto push = std::get<Push>(ins);
+        os << "push " << push.src;
     } else {
         throw std::runtime_error("Unsupported instruction type");
     }
