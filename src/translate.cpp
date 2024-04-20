@@ -1,6 +1,7 @@
 
 #include <iostream>
 #include <memory>
+#include <utility>
 #include <stdexcept>
 #include <unordered_map>
 #include <variant>
@@ -8,29 +9,8 @@
 #include "asttraits.hpp"
 #include "translate.hpp"
 
-struct Ctx {
-    unsigned long counter = 0;
-    bool __lvalueContext = false;
-
-    std::unordered_map<std::string, ast::Node *> local_variables;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunused-parameter"
-
-    void set_lvalueContext(std::string why, bool value) {
-        // std::cout << "set_lvalueContext: " << why << " " << value << std::endl;
-        __lvalueContext = value;
-    }
-#pragma clang diagnostic pop
-};
-
-[[nodiscard]] std::unique_ptr<ast::Node> translate(const st::Expression &expr,
-        Ctx &ctx);
-[[nodiscard]] static std::vector<std::unique_ptr<ast::Node>>
-        translate(st::CompoundStatement &stmts, Ctx &ctx);
-
 // primary
-[[nodiscard]] std::unique_ptr<ast::Node>
-translate(const std::unique_ptr<st::PrimaryExpression> &expr, Ctx &ctx) {
+auto translate(const std::unique_ptr<st::PrimaryExpression> &expr, Ctx &ctx) -> std::unique_ptr<ast::Node> {
     if (expr->type == st::PrimaryExpressionType::INT) {
         return ast::makeConstInt(expr->value);
     }
@@ -60,10 +40,9 @@ translate(const std::unique_ptr<st::AssignmentExpression> &expr, Ctx &ctx) {
 
 // unary expression
 // assignment
-[[nodiscard]] std::unique_ptr<ast::Node>
-translate(const std::unique_ptr<st::UnaryExpression> &expr, Ctx &ctx) {
+[[nodiscard]] auto
+translate(const std::unique_ptr<st::UnaryExpression> &expr, Ctx &ctx) -> std::unique_ptr<ast::Node> {
     auto e = translate(expr->expr, ctx);
-    std::cout << "translated unary expression: " << *e << std::endl;
     if (expr->type == st::UnaryExpressionType::DEREF &&
             ctx.__lvalueContext == false) {
         return ast::makeNewMemRead(std::move(e));
@@ -73,12 +52,13 @@ translate(const std::unique_ptr<st::UnaryExpression> &expr, Ctx &ctx) {
     } else if (expr->type == st::UnaryExpressionType::ADDR) {
         return ast::makeNewAddr(std::move(e));
     }
+
     throw std::runtime_error(
         "translate(const st::UnaryExpression &expr, Ctx &ctx)");
+    std::unreachable();
 }
 
-[[nodiscard]] std::unique_ptr<ast::Node>
-translate(const std::unique_ptr<st::AdditiveExpression> &expr, Ctx &ctx) {
+[[nodiscard]] std::unique_ptr<ast::Node> translate(const std::unique_ptr<st::AdditiveExpression> &expr, Ctx &ctx) {
     auto lhs = translate(expr->lhs, ctx);
     auto rhs = translate(expr->rhs, ctx);
     std::unordered_map<st::AdditiveExpressionType, ast::BinOpKind> mp = {
@@ -94,8 +74,39 @@ translate(const std::unique_ptr<st::AdditiveExpression> &expr, Ctx &ctx) {
         "translate(const st::AdditiveExpression &expr, Ctx &ctx)");
 }
 
-[[nodiscard]] std::unique_ptr<ast::Node>
-translate(const std::unique_ptr<st::FunctionCallExpression> &expr, Ctx &ctx) {
+auto translate(const std::unique_ptr<st::ForStatement> &stmt, Ctx &ctx) -> std::unique_ptr<ast::Node> {
+    const st::ForDeclaration &init = stmt->init;
+    ast::Node *initNode = nullptr;
+    const auto iden =
+        init.initDeclarator.value().declarator.directDeclarator.VariableIden();
+    auto datatype = asttraits::toDataType(init);
+    auto var = ast::makeNewVar(iden, *datatype);
+    ctx.local_variables[iden] = var.get();
+    const auto &expr = init.initDeclarator.value().initializer.value().expr;
+    ctx.set_lvalueContext("translate(const std::unique_ptr<st::ForStatement> &stmt, Ctx &ctx)",
+                          false);
+    auto initInFirstEntryOfForLoop = translate(expr, ctx);
+    ctx.set_lvalueContext("translate(const std::unique_ptr<st::ForStatement> &stmt, Ctx &ctx)",
+                          true);
+    auto forInit = ast::makeNewMove(std::move(var), std::move(initInFirstEntryOfForLoop));
+    std::optional<std::unique_ptr<ast::Node>> forCondition;
+    std::optional<std::unique_ptr<ast::Node>> forUpdate;
+    if (stmt->cond) {
+        forCondition = translate(*stmt->cond, ctx);
+    }
+    if (stmt->inc) {
+        forUpdate = translate(*stmt->inc, ctx);
+    }
+    if (stmt->body == nullptr) {
+        throw std::runtime_error("for body is null");
+    }
+    auto body = translate(*stmt->body.get(), ctx);
+    auto result =  ast::makeNewForLoop(std::move(forInit), std::move(forCondition), std::move(forUpdate),
+                                       std::move(body));
+    return std::move(result);
+}
+
+auto translate(const std::unique_ptr<st::FunctionCallExpression> &expr, Ctx &ctx) -> std::unique_ptr<ast::Node> {
     std::vector<std::unique_ptr<ast::Node>> args;
     for (const auto &arg : expr->args) {
         auto e = translate(arg, ctx);
@@ -107,34 +118,11 @@ translate(const std::unique_ptr<st::FunctionCallExpression> &expr, Ctx &ctx) {
 // expression
 [[nodiscard]] std::unique_ptr<ast::Node> translate(const st::Expression &expr,
         Ctx &ctx) {
-    if (std::holds_alternative<std::unique_ptr<st::PrimaryExpression>>(expr)) {
-        const auto &pe =
-            std::get<std::unique_ptr<st::PrimaryExpression>>(std::move(expr));
-        return translate(pe, ctx);
-    }
-    if (std::holds_alternative<std::unique_ptr<st::AssignmentExpression>>(expr)) {
-        const auto &ae =
-            std::get<std::unique_ptr<st::AssignmentExpression>>(std::move(expr));
-        return translate(ae, ctx);
-    }
-    if (std::holds_alternative<std::unique_ptr<st::UnaryExpression>>(expr)) {
-        const auto &ue =
-            std::get<std::unique_ptr<st::UnaryExpression>>(std::move(expr));
-        return translate(ue, ctx);
-    }
-    if (std::holds_alternative<std::unique_ptr<st::AdditiveExpression>>(expr)) {
-        const auto &ae =
-            std::get<std::unique_ptr<st::AdditiveExpression>>(std::move(expr));
-        return translate(ae, ctx);
-    }
-    if (std::holds_alternative<std::unique_ptr<st::FunctionCallExpression>>(
-                expr)) {
-        const auto &fce =
-            std::get<std::unique_ptr<st::FunctionCallExpression>>(std::move(expr));
-        std::vector<std::unique_ptr<ast::Node>> args;
-        return translate(fce, ctx);
-    }
-    throw std::runtime_error("translate(const st::Expression &expr, Ctx &ctx)");
+    return std::visit(
+    [&ctx](auto &&arg) {
+        return translate(std::move(arg), ctx);
+    },
+    expr);
 }
 
 // return statement
@@ -155,8 +143,7 @@ translate(const std::unique_ptr<st::ExpressionStatement> &stmt, Ctx &ctx) {
 }
 
 // selection statement statement
-[[nodiscard]] std::unique_ptr<ast::Node>
-translate(const std::unique_ptr<st::SelectionStatement> &stmt, Ctx &ctx) {
+auto translate(const std::unique_ptr<st::SelectionStatement> &stmt, Ctx &ctx) -> std::unique_ptr<ast::Node> {
     auto condition = translate(stmt->cond, ctx);
     auto kind = condition->binOpKind;
     if (kind != ast::BinOpKind::Eq && kind != ast::BinOpKind::Gt) {
@@ -181,8 +168,7 @@ translate(const std::unique_ptr<st::SelectionStatement> &stmt, Ctx &ctx) {
 }
 
 // declaration
-[[nodiscard]] static std::unique_ptr<ast::Node>
-translate(const st::Declaration &decl, Ctx &ctx) {
+[[nodiscard]] auto translate(const st::Declaration &decl, Ctx &ctx) -> std::unique_ptr<ast::Node> {
     const auto iden =
         decl.initDeclarator.value().declarator.directDeclarator.VariableIden();
     auto datatype = asttraits::toDataType(decl);
@@ -212,32 +198,17 @@ translate(st::ParamTypeList &params) {
     return result;
 }
 
-[[nodiscard]] static std::unique_ptr<ast::Node> translate(st::Statement &stmt,
-        Ctx &ctx) {
+auto translateStatement(st::Statement &stmt,
+                        Ctx &ctx) -> std::unique_ptr<ast::Node>  {
     auto s = std::move(stmt.stmt);
     return std::visit(
-    [&ctx](auto &&arg) -> std::unique_ptr<ast::Node> {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::unique_ptr<st::ReturnStatement>>) {
-            return translate(std::move(arg), ctx);
-        } else if constexpr (std::is_same_v<
-                             T, std::unique_ptr<st::ExpressionStatement>>) {
-            return translate(std::move(arg), ctx);
-        } else if constexpr (std::is_same_v<
-                             T, std::unique_ptr<st::SelectionStatement>>) {
-            return translate(std::move(arg), ctx);
-        }
-
-        else {
-            throw std::runtime_error(
-                "translate(const st::Statement &stmt, Ctx &ctx)");
-        }
+    [&ctx](auto &&arg) {
+        return translate(std::move(arg), ctx);
     },
     s);
 }
 
-[[nodiscard]] static std::vector<std::unique_ptr<ast::Node>>
-translate(st::CompoundStatement &stmts, Ctx &ctx) {
+auto translate(st::CompoundStatement &stmts, Ctx &ctx) ->  std::vector<std::unique_ptr<ast::Node>> {
     if (stmts.items.empty()) {
         return {};
     }
@@ -245,7 +216,7 @@ translate(st::CompoundStatement &stmts, Ctx &ctx) {
     for (auto &bi : stmts.items) {
         if (std::holds_alternative<st::Statement>(bi.item)) {
             auto stmt = std::get<st::Statement>(std::move(bi.item));
-            auto node = translate(stmt, ctx);
+            auto node = translateStatement(stmt, ctx);
             result.push_back(std::move(node));
         } else {
             auto &decl = std::get<st::Declaration>(bi.item);

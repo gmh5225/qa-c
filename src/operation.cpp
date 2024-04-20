@@ -31,9 +31,6 @@ std::ostream &operator<<(std::ostream &os, const Operation &ins) {
     } else if (std::holds_alternative<Deref>(ins)) {
         const auto &deref = std::get<Deref>(ins);
         os << "deref " << deref.dst << ", " << deref.src;
-    } else if (std::holds_alternative<StoreAddr>(ins)) {
-        const auto &storeaddr = std::get<StoreAddr>(ins);
-        os << "storeaddr " << storeaddr.dst << ", " << storeaddr.src;
     } else if (std::holds_alternative<Equal>(ins)) {
         const auto &equal = std::get<Equal>(ins);
         os << "equal " << equal.dst << ", " << equal.left << ", " << equal.right;
@@ -59,9 +56,6 @@ std::ostream &operator<<(std::ostream &os, const Operation &ins) {
     } else if (std::holds_alternative<Deref>(ins)) {
         const auto &deref = std::get<Deref>(ins);
         os << "deref " << deref.dst << ", " << deref.src;
-    } else if (std::holds_alternative<StoreAddr>(ins)) {
-        const auto &storeaddr = std::get<StoreAddr>(ins);
-        os << "storeaddr " << storeaddr.dst << ", " << storeaddr.src;
     } else if (std::holds_alternative<DerefStore>(ins)) {
         const auto &derefstore = std::get<DerefStore>(ins);
         os << "derefstore " << derefstore.dst << ", " << derefstore.src;
@@ -74,6 +68,9 @@ std::ostream &operator<<(std::ostream &os, const Operation &ins) {
     } else if (std::holds_alternative<DefineStackPushed>(ins)) {
         const auto &dsp = std::get<DefineStackPushed>(ins);
         os << "DefineStackPushed " << dsp.name << ", " << dsp.size;
+    } else if (std::holds_alternative<Jump>(ins)) {
+        const auto &jmp = std::get<Jump>(ins);
+        os << "jmp " << jmp.label;
     } else {
         throw std::runtime_error("Unknown instruction type " +
                                  std::to_string(ins.index()));

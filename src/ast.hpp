@@ -19,7 +19,8 @@ enum class NodeType {
     Addr,
     BinOp,
     If,
-    Call
+    Call,
+    ForLoop
 };
 
 enum class BinOpKind { Add, Sub, Eq, Gt };
@@ -113,6 +114,12 @@ class Node {
     std::vector<std::unique_ptr<ast::Node>> callArgs;
     ast::DataType returnType;
 
+    // for
+    std::unique_ptr<Node> forInit;
+    std::optional<std::unique_ptr<Node>> forCondition;
+    std::optional<std::unique_ptr<Node>> forUpdate;
+    std::vector<std::unique_ptr<ast::Node>> forBody;
+
     int derefDepth = 0;
 
     std::string VariableName() {
@@ -153,6 +160,10 @@ makeNewIfStmt(std::unique_ptr<ast::Node> condition,
 
 std::unique_ptr<Node> makeNewCall(std::string name,
                                   std::vector<std::unique_ptr<ast::Node>> args);
+std::unique_ptr<Node> makeNewForLoop(std::unique_ptr<ast::Node> init,
+                                     std::optional<std::unique_ptr<ast::Node>> condition,
+                                     std::optional<std::unique_ptr<ast::Node>> update,
+                                     std::vector<std::unique_ptr<ast::Node>> body) ;
 
 inline std::ostream &operator<<(std::ostream &os, const Node &node);
 inline std::ostream &DebugFrame(std::ostream &os, const Node &node) {
@@ -170,8 +181,6 @@ inline std::ostream &DebugFrame(std::ostream &os, const Node &node) {
 
 inline std::ostream &operator<<(std::ostream &os, const Node &node) {
     switch (node.type) { //
-        DebugFrame(os, node);
-        break;
     case NodeType::Move:
         os << "Move(" << *node.lhs << ", " << *node.rhs << ")";
         break;
@@ -227,6 +236,15 @@ inline std::ostream &operator<<(std::ostream &os, const Node &node) {
         }
         os << "])";
         break;
+    case NodeType::ForLoop: {
+        os << "ForLoop(init=" << *node.forInit << ", condition=" << **node.forCondition << ", update=" << **node.forUpdate <<
+           ", body=[";
+        for (const auto &n : node.forBody) {
+            os << *n << ", ";
+        }
+        os << "])";
+        break;
+    }
     }
     return os;
 }

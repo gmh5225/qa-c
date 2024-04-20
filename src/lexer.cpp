@@ -16,11 +16,12 @@ static unsigned long start = 0;
 static unsigned long line = 1;
 std::string source;
 
-std::unordered_map<std::string, TokType> keywords = {
+const std::unordered_map<std::string, TokType> keywords = {
     {"return", TokType::TOKEN_RETURN},
     {"int", TokType::TOKEN_T_INT},
     {"else", TokType::TOKEN_ELSE},
-    {"if", TokType::TOKEN_IF}
+    {"if", TokType::TOKEN_IF},
+    {"for", TokType::TOKEN_FOR},
 };
 
 [[nodiscard]] bool isAtEnd() {
@@ -127,7 +128,7 @@ char advance() {
             assert(current - 1 < source.size());
             const std::string text = source.substr(start, current - start);
             if (keywords.find(text) != keywords.end()) {
-                return Token{keywords[text], text};
+                return Token{keywords.at(text), text};
             }
             return Token{TokType::TOKEN_IDENTIFIER, text};
         } else {

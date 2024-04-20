@@ -17,7 +17,7 @@ concept ContainsTypeDeclaration = requires(T t) {
     }
     -> std::convertible_to<std::vector<st::DeclarationSpecifier>>;
     {
-        t.Declarator()
+        t.GetDeclarator()
     }
     -> std::convertible_to<std::optional<st::Declarator>>;
 };
@@ -47,7 +47,7 @@ toDataType(const std::vector<st::DeclarationSpecifier> &dss) {
 
 template <ContainsTypeDeclaration T> ast::DataType *toDataType(const T &decl) {
     auto datatype = toDataType(decl.declarationSpecifiers);
-    std::optional<st::Declarator> opt_declarator = decl.Declarator();
+    std::optional<st::Declarator> opt_declarator = decl.GetDeclarator();
     if (!opt_declarator) {
         return datatype;
     }

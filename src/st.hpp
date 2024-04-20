@@ -243,7 +243,7 @@ class Declarator {
 
 class ParameterDeclaration {
   public:
-    std::string Name() const {
+    [[nodiscard]] std::string Name() const {
         if (declarator.directDeclarator.kind == DeclaratorKind::VARIABLE) {
             return std::get<VariableDirectDeclarator>(
                        declarator.directDeclarator.declarator)
@@ -255,7 +255,7 @@ class ParameterDeclaration {
     std::vector<DeclarationSpecifier> declarationSpecifiers;
     Declarator declarator;
 
-    Declarator Declarator() const {
+    Declarator GetDeclarator() const {
         return declarator;
     }
 };
@@ -275,6 +275,7 @@ class InitDeclarator {
   public:
     Declarator declarator;
     std::optional<Initalizer> initializer;
+
 };
 
 inline std::ostream &operator<<(std::ostream &os, const InitDeclarator &node) {
@@ -293,7 +294,7 @@ class Declaration {
     std::vector<DeclarationSpecifier> declarationSpecifiers;
     std::optional<InitDeclarator> initDeclarator;
 
-    std::optional<Declarator> Declarator() const {
+    std::optional<Declarator> GetDeclarator() const {
         if (initDeclarator) {
             return initDeclarator->declarator;
         }
@@ -354,6 +355,37 @@ class SelectionStatement {
     std::unique_ptr<CompoundStatement> else_;
 };
 
+struct ForDeclaration {
+    explicit ForDeclaration(std::vector<DeclarationSpecifier> declarationSpecifiers, InitDeclarator initDeclarator)
+        : declarationSpecifiers(std::move(declarationSpecifiers)),
+          initDeclarator(std::move(initDeclarator)) {}
+
+    std::ostream &print(std::ostream &os) const {
+        os << "ForDeclaration(declarationSpecifiers=[";
+        for (auto &v : declarationSpecifiers) {
+            os << v << ",";
+        }
+        os << "], initDeclarator=";
+        if (initDeclarator) {
+            os << *initDeclarator;
+        } else {
+            os << "nullptr";
+        }
+        os << ")";
+        return os;
+    }
+
+    [[nodiscard]] std::optional<Declarator> GetDeclarator() const {
+        if (initDeclarator) {
+            return initDeclarator->declarator;
+        }
+        return std::nullopt;
+    }
+
+    std::vector<DeclarationSpecifier> declarationSpecifiers = {};
+    std::optional<InitDeclarator> initDeclarator = std::nullopt;
+};
+
 class ReturnStatement {
   public:
     explicit ReturnStatement(Expression expr) : expr(std::move(expr)) {}
@@ -367,12 +399,14 @@ class ReturnStatement {
     Expression expr;
 };
 
+class ForStatement;
+
 class Statement {
   public:
     explicit Statement(std::variant<std::unique_ptr<ExpressionStatement>,
                        std::unique_ptr<ReturnStatement>,
-                       std::unique_ptr<SelectionStatement>>
-                       stmt);
+                       std::unique_ptr<SelectionStatement>,
+                       std::unique_ptr<ForStatement>> stmt);
 
     explicit Statement(std::unique_ptr<ExpressionStatement> node);
 
@@ -382,8 +416,26 @@ class Statement {
 
     std::variant<std::unique_ptr<ExpressionStatement>,
         std::unique_ptr<ReturnStatement>,
-        std::unique_ptr<SelectionStatement>>
+        std::unique_ptr<SelectionStatement>,
+        std::unique_ptr<ForStatement>
+        >
         stmt;
+};
+
+class ForStatement {
+  public:
+    explicit ForStatement(ForDeclaration init,
+                          std::optional<Expression> cond,
+                          std::optional<Expression> inc,
+                          std::unique_ptr<CompoundStatement> body) ;
+
+    std::ostream &print(std::ostream &os) const;
+
+    ForDeclaration init;
+    std::optional<Expression> cond;
+    std::optional<Expression> inc;
+    std::unique_ptr<CompoundStatement> body;
+
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Statement &node) {
@@ -397,9 +449,17 @@ inline std::ostream &operator<<(std::ostream &os, const Statement &node) {
         return std::get<std::unique_ptr<SelectionStatement>>(node.stmt)->print(os)
                << "))";
     }
-    os << "Statement(ReturnStatement(";
-    return std::get<std::unique_ptr<ReturnStatement>>(node.stmt)->print(os)
-           << "))";
+    if (std::holds_alternative<std::unique_ptr<ForStatement>>(node.stmt)) {
+        os << "Statement(ForStatement(";
+        return std::get<std::unique_ptr<ForStatement>>(node.stmt)->print(os)
+               << "))";
+    }
+    if (std::holds_alternative<std::unique_ptr<ReturnStatement>>(node.stmt)) {
+        os << "Statement(ReturnStatement(";
+        return std::get<std::unique_ptr<ReturnStatement>>(node.stmt)->print(os)
+               << "))";
+    }
+    throw std::runtime_error("Not implemented");
 }
 
 class BlockItem {
@@ -414,6 +474,22 @@ class BlockItem {
 
 struct CompoundStatement {
     std::vector<BlockItem> items;
+
+    std::ostream &print(std::ostream &os) const {
+        os << "CompoundStatement(items=[";
+        for (auto &v : items) {
+            if (std::holds_alternative<Declaration>(v.item)) {
+                os << std::get<Declaration>(v.item) << std::endl;
+            } else {
+                const auto &stmt = std::get<Statement>(v.item);
+                os << stmt << std::endl;
+            }
+            os << "\n";
+        }
+        os << "])";
+        return os;
+    }
+
 };
 
 inline std::ostream &operator<<(std::ostream &os,

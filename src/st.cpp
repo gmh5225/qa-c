@@ -15,7 +15,8 @@ SelectionStatement::SelectionStatement(Expression cond,
 
 Statement::Statement(std::variant<std::unique_ptr<ExpressionStatement>,
                      std::unique_ptr<ReturnStatement>,
-                     std::unique_ptr<SelectionStatement>>
+                     std::unique_ptr<SelectionStatement>,
+                     std::unique_ptr<ForStatement>>
                      stmt)
     : stmt(std::move(stmt)) {}
 
@@ -37,5 +38,21 @@ UnaryExpression::UnaryExpression(UnaryExpressionType _type, Expression p_expr)
 FunctionCallExpression::FunctionCallExpression(std::string name,
         std::vector<Expression> args)
     : name(std::move(name)), args(std::move(args)) {}
+
+ForStatement::ForStatement(ForDeclaration p_init,
+                           std::optional<Expression> p_cond,
+                           std::optional<Expression> p_inc,
+                           std::unique_ptr<CompoundStatement> p_body)  :
+
+    init(std::move(p_init)),
+    cond(std::move(p_cond)),
+    inc(std::move(p_inc)),
+
+    body(std::move(p_body)) {}
+
+std::ostream &ForStatement::print(std::ostream &os) const {
+    os << "for stmt";
+    return os;
+}
 
 } // namespace st

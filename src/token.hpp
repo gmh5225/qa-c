@@ -37,6 +37,7 @@ enum TokType {
     TOKEN_RETURN,
     TOKEN_IF,
     TOKEN_ELSE,
+    TOKEN_FOR,
     // Builtin types
     TOKEN_T_INT,
     TOKEN_T_INT_LIT,

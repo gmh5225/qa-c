@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <variant>
 #include <vector>
+#include <ranges>
 
 #include "allocator.hpp"
 #include "qa_x86.hpp"
@@ -30,9 +31,10 @@ struct Ctx {
     }
 
     void freeReg(target::BaseRegister freedReg) {
-        for (size_t i = 0; i < target::general_regs.size(); i++) {
-            if (target::general_regs[i] == freedReg) {
-                usedRegs.erase(i);
+        for (auto it = target::general_regs.begin(); it != target::general_regs.end(); ++it) {
+            if (*it == freedReg) {
+                auto index = std::distance(target::general_regs.begin(), it);
+                usedRegs.erase(index);
                 return;
             }
         }
@@ -46,7 +48,8 @@ struct FirstLastUse {
 };
 
 [[nodiscard]] FirstLastUse getFirstUse(const target::Frame &frame) {
-    FirstLastUse fl = {};
+    std::map<int, int> firstUse = {};
+    std::map<int, int> lastUse = {};
     int i = 0;
     for (const auto &ins : frame.instructions) {
         ++i;
@@ -57,37 +60,33 @@ struct FirstLastUse {
                     srcId, dstId
                 }) {
             if (id.has_value()) {
-                if (fl.firstUse.find(id.value()) == fl.firstUse.end()) {
-                    fl.firstUse[id.value()] = i;
+                if (firstUse.find(id.value()) == firstUse.end()) {
+                    firstUse[id.value()] = i;
                 }
-                fl.lastUse[id.value()] = i;
+                lastUse[id.value()] = i;
             }
         }
     }
-    return fl;
+    return {firstUse, lastUse};
 }
 
 [[nodiscard]] std::map<target::VirtualRegister, target::VirtualRegister>
 remap(target::Frame &frame) {
-    std::map<target::VirtualRegister, target::VirtualRegister> remappedRegisters =
-        {};
+    std::map<target::VirtualRegister, target::VirtualRegister> remappedRegisters = {};
     std::map<target::VirtualRegister, int> newFirstUsed = {};
-    int idx = 0;
-    for (const auto &i : frame.instructions) {
-        idx += 1;
-        auto operation = i;
+    for (auto [idx, instruction] : frame.instructions | std::views::enumerate) {
         std::optional<target::VirtualRegister> src;
-        auto register_src = target::get_src_register(operation);
+        auto register_src = target::get_src_register(instruction);
         if (register_src.has_value()) {
             src = *register_src;
             if (newFirstUsed.find(*src) == newFirstUsed.end()) {
                 newFirstUsed[*src] = idx;
             }
         }
-        const auto register_dest = target::get_dest_register(operation);
+        const auto register_dest = target::get_dest_register(instruction);
         if (register_dest.has_value()) {
             const auto dest = *register_dest;
-            if (std::holds_alternative<target::Mov>(operation) == false) {
+            if (! std::holds_alternative<target::Mov>(instruction) ) {
                 continue;
             }
             // if not found in newFirstused, (ie first used as a dest) then we need to

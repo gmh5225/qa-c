@@ -7,24 +7,19 @@
 #include <stdexcept>
 
 #include "token.hpp"
-
-[[nodiscard]] st::DirectDeclarator parseDirectDeclartor();
-[[nodiscard]] st::Declaration parseDeclaration();
-[[nodiscard]] static st::Declarator parseDeclarator();
-[[nodiscard]] st::CompoundStatement parseCompoundStatement();
-[[nodiscard]] st::Expression parseExpression();
+#include "syntax_utils.hpp"
 
 static unsigned long current = 0;
 std::vector<Token> g_tokens;
 
-[[nodiscard]] static Token peek() {
+static Token peek() {
     if (current >= g_tokens.size()) {
         return Token{TokType::TOKEN_FEOF, ""};
     }
     return g_tokens[current];
 }
 
-[[nodiscard]] Token peekn(size_t n) {
+Token peekn(size_t n) {
     if (current + n >= g_tokens.size()) {
         return Token{TokType::TOKEN_FEOF, ""};
     }
@@ -42,7 +37,7 @@ static Token previous() {
     return g_tokens[current - 1];
 }
 
-[[nodiscard]] bool match(TokType type) {
+bool match(TokType type) {
     if (peek().type == type) {
         advance();
         return true;
@@ -50,12 +45,8 @@ static Token previous() {
     return false;
 }
 
-[[nodiscard]] static bool isAtEnd() {
+static bool isAtEnd() {
     return peek().type == TokType::TOKEN_FEOF;
-}
-
-[[nodiscard]] bool isTypeSpecifier(Token token) {
-    return token.type == TokType::TOKEN_T_INT;
 }
 
 void consume(TokType typ) {
@@ -66,13 +57,7 @@ void consume(TokType typ) {
     }
 }
 
-[[nodiscard]] bool isFuncBegin() {
-    return isTypeSpecifier(peek()) &&
-           peekn(1).type == TokType::TOKEN_IDENTIFIER &&
-           peekn(2).type == TokType::TOKEN_LEFT_PAREN;
-}
-
-[[nodiscard]] std::vector<st::DeclarationSpecifier> parseDeclarationSpecs() {
+auto parseDeclarationSpecs() -> std::vector<st::DeclarationSpecifier>  {
     std::vector<st::DeclarationSpecifier> declspecs;
     while (isTypeSpecifier(peek())) {
         if (peek().type == TokType::TOKEN_T_INT) {
@@ -89,7 +74,7 @@ void consume(TokType typ) {
     return declspecs;
 }
 
-[[nodiscard]] std::optional<st::Pointer> parsePointer() {
+std::optional<st::Pointer> parsePointer() {
     size_t count = 0;
     while (match(TokType::TOKEN_STAR)) {
         count++;
@@ -100,7 +85,7 @@ void consume(TokType typ) {
     return st::Pointer{.level = count};
 }
 
-[[nodiscard]] std::string parseIdentifier() {
+std::string parseIdentifier() {
     const auto tk = peek();
     if (tk.type == TokType::TOKEN_IDENTIFIER) {
         advance();
@@ -110,7 +95,7 @@ void consume(TokType typ) {
     throw std::runtime_error(msg);
 }
 
-[[nodiscard]] st::ParamTypeList parseParamTypeList() {
+st::ParamTypeList parseParamTypeList() {
     std::vector<st::ParameterDeclaration> params;
     while (!match(TokType::TOKEN_RIGHT_PAREN)) {
         const auto declspecs = parseDeclarationSpecs();
@@ -126,7 +111,7 @@ void consume(TokType typ) {
     return st::ParamTypeList{.params = params, .va_args = false};
 }
 
-[[nodiscard]] st::DirectDeclarator parseDirectDeclartor() {
+st::DirectDeclarator parseDirectDeclartor() {
     auto iden = parseIdentifier();
     if (match(TokType::TOKEN_LEFT_PAREN)) {
         auto paramList = parseParamTypeList();
@@ -141,19 +126,13 @@ void consume(TokType typ) {
                                 .declarator = vd};
 }
 
-[[nodiscard]] static st::Declarator parseDeclarator() {
+static st::Declarator parseDeclarator() {
     const auto ptr = parsePointer();
     const auto dd = parseDirectDeclartor();
     return st::Declarator{.pointer = ptr, .directDeclarator = dd};
 }
 
-[[nodiscard]] bool isStmtBegin(Token t) {
-    return t.type == TokType::TOKEN_RETURN ||
-           t.type == TokType::TOKEN_IDENTIFIER || t.type == TokType::TOKEN_STAR ||
-           t.type == TokType::TOKEN_IF;
-}
-
-[[nodiscard]] std::unique_ptr<st::PrimaryExpression> parsePrimaryExpression() {
+std::unique_ptr<st::PrimaryExpression> parsePrimaryExpression() {
     if (peek().type == TokType::TOKEN_IDENTIFIER) {
         const auto lexeme = peek().lexeme;
         advance();
@@ -168,33 +147,7 @@ void consume(TokType typ) {
                              peek().lexeme);
 }
 
-[[nodiscard]] bool __EqualsSignLookahead() {
-    unsigned long i = current;
-    while (i < g_tokens.size()) {
-        if (g_tokens[i].type == TokType::TOKEN_EQUAL) {
-            return true;
-        }
-        if (g_tokens[i].type == TokType::TOKEN_SEMICOLON) {
-            return false;
-        }
-        if (g_tokens[i].type == TokType::TOKEN_LEFT_BRACE) {
-            return false;
-        }
-        if (g_tokens[i].type == TokType::TOKEN_RIGHT_BRACE) {
-            return false;
-        }
-        if (g_tokens[i].type == TokType::TOKEN_LEFT_PAREN) {
-            return false;
-        }
-        if (g_tokens[i].type == TokType::TOKEN_RIGHT_PAREN) {
-            return false;
-        }
-        i++;
-    }
-    return false;
-}
-
-[[nodiscard]] st::Expression parsePostfixExpression() {
+auto  parsePostfixExpression() -> st::Expression {
     auto primary = parsePrimaryExpression();
     if (match(TokType::TOKEN_LEFT_PAREN)) {
         std::vector<st::Expression> args;
@@ -213,7 +166,7 @@ void consume(TokType typ) {
     return primary;
 }
 
-[[nodiscard]] st::Expression parseUnaryExpression() {
+st::Expression parseUnaryExpression() {
     if (match(TokType::TOKEN_STAR)) {
         auto expr = parseUnaryExpression();
         return std::make_unique<st::UnaryExpression>(st::UnaryExpressionType::DEREF,
@@ -227,7 +180,7 @@ void consume(TokType typ) {
     return parsePostfixExpression();
 }
 
-[[nodiscard]] st::Expression parseAdditiveExpression() {
+st::Expression parseAdditiveExpression() {
     auto lhs = parseUnaryExpression();
     while (match(TokType::TOKEN_PLUS) || match(TokType::TOKEN_MINUS)) {
         auto op_token = previous();
@@ -242,7 +195,7 @@ void consume(TokType typ) {
     return lhs;
 }
 
-[[nodiscard]] st::Expression parseRelationalExpression() {
+st::Expression parseRelationalExpression() {
     auto lhs = parseAdditiveExpression();
     if (match(TOKEN_GREATER)) {
         auto op_token = previous();
@@ -254,7 +207,7 @@ void consume(TokType typ) {
     return lhs;
 }
 
-[[nodiscard]] st::Expression parseEqualityExpression() {
+st::Expression parseEqualityExpression() {
     auto lhs = parseRelationalExpression();
     if (match(TokType::TOKEN_EQUAL_EQUAL) || match(TokType::TOKEN_BANG_EQUAL)) {
         auto op_token = previous();
@@ -269,8 +222,8 @@ void consume(TokType typ) {
     return lhs;
 }
 
-[[nodiscard]] st::Expression parseAssignmentExpression() {
-    if (__EqualsSignLookahead() == false) {
+st::Expression parseAssignmentExpression() {
+    if (__EqualsSignLookahead(current, g_tokens) == false) {
         return parseEqualityExpression();
     }
     auto lhs = parseEqualityExpression();
@@ -280,26 +233,23 @@ void consume(TokType typ) {
             std::move(rhs));
 }
 
-[[nodiscard]] st::Expression parseExpression() {
+auto  parseExpression() -> st::Expression {
     return parseAssignmentExpression();
 }
 
-[[nodiscard]] std::unique_ptr<st::ReturnStatement> parseReturnStatement() {
+auto parseReturnStatement() -> std::unique_ptr<st::ReturnStatement>  {
     auto expr = parseExpression();
     consume(TokType::TOKEN_SEMICOLON);
     return std::make_unique<st::ReturnStatement>(std::move(expr));
 }
 
-[[nodiscard]] std::unique_ptr<st::ExpressionStatement>
-parseExpressionStatement() {
+auto parseExpressionStatement() -> std::unique_ptr<st::ExpressionStatement> {
     auto expr = parseExpression();
     consume(TokType::TOKEN_SEMICOLON);
     return std::make_unique<st::ExpressionStatement>(std::move(expr));
 }
 
-[[nodiscard]] st::Statement parseStatement();
-
-[[nodiscard]] std::unique_ptr<st::SelectionStatement> parseIfStatement() {
+std::unique_ptr<st::SelectionStatement> parseIfStatement() {
     consume(TokType::TOKEN_LEFT_PAREN);
     auto expr = parseExpression();
     consume(TokType::TOKEN_RIGHT_PAREN);
@@ -317,7 +267,49 @@ parseExpressionStatement() {
                std::move(expr), std::move(thenStmtUnique), nullptr);
 }
 
-[[nodiscard]] st::Statement parseStatement() {
+auto parseForDeclaration() -> st::ForDeclaration {
+    auto declspecs = parseDeclarationSpecs();
+    auto decl = parseInitDeclarator();
+    return st::ForDeclaration(declspecs, std::move(decl));
+}
+
+auto parseForStatement() -> std::unique_ptr<st::ForStatement> {
+    consume(TokType::TOKEN_LEFT_PAREN);
+    // if the next thing is a declaration specifier then we want to parse a forDeclaration.
+    // else we want to parse an expression
+    st::ForDeclaration decl({}, {});
+    std::optional<st::Expression> cond = std::nullopt;
+    std::optional<st::Expression> inc = std::nullopt;
+    if (isTypeSpecifier(peek())) {
+        // should parse the semicolon
+        decl = parseForDeclaration();
+        if (peek().type != TokType::TOKEN_SEMICOLON) {
+            cond = parseExpression();
+            consume(TokType::TOKEN_SEMICOLON);
+        } else {
+            consume(TokType::TOKEN_SEMICOLON);
+        }
+        if (peek().type != TokType::TOKEN_RIGHT_PAREN) {
+            inc = parseExpression();
+        }
+    } else {
+        throw std::runtime_error("Expected declaration specifier found " + peek().lexeme);
+    }
+    consume(TokType::TOKEN_RIGHT_PAREN);
+    auto body = parseCompoundStatement();
+    auto bodyUnique  =
+        std::make_unique<st::CompoundStatement>(std::move(body));
+    return std::make_unique<st::ForStatement>(std::move(decl), std::move(cond), std::move(inc), std::move(bodyUnique));
+}
+
+/**
+ *  Question:
+ *  Can ParseStatement() yield CompoundStatement?
+ *  Answer:
+ *      Not straight up. Needs to be requested from things like
+ *        parseIfStatement() or parseForStatement()
+**/
+auto parseStatement() -> st::Statement {
     if (match(TokType::TOKEN_RETURN)) {
         auto ret = parseReturnStatement();
         return st::Statement(std::move(ret));
@@ -326,11 +318,15 @@ parseExpressionStatement() {
         auto ifStmt = parseIfStatement();
         return st::Statement(std::move(ifStmt));
     }
+    if (match(TokType::TOKEN_FOR)) {
+        auto forStmt = parseForStatement();
+        return st::Statement(std::move(forStmt));
+    }
     auto expr = parseExpressionStatement();
     return st::Statement(std::move(expr));
 }
 
-[[nodiscard]] st::BlockItem parseBlockItem() {
+st::BlockItem parseBlockItem() {
     if (isStmtBegin(peek())) {
         auto item = parseStatement();
         return st::BlockItem(std::move(item));
@@ -339,7 +335,7 @@ parseExpressionStatement() {
     return st::BlockItem(std::move(decl));
 }
 
-[[nodiscard]] st::CompoundStatement parseCompoundStatement() {
+st::CompoundStatement parseCompoundStatement() {
     // left
     consume(TokType::TOKEN_LEFT_BRACE);
     std::vector<st::BlockItem> blockItems;
@@ -350,12 +346,12 @@ parseExpressionStatement() {
     return st::CompoundStatement{.items = std::move(blockItems)};
 }
 
-[[nodiscard]] st::Initalizer parseInitalizer() {
+st::Initalizer parseInitalizer() {
     auto expr = parseExpression();
     return st::Initalizer(std::move(expr));
 }
 
-[[nodiscard]] st::InitDeclarator parseInitDeclarator() {
+st::InitDeclarator parseInitDeclarator() {
     auto declarator = parseDeclarator();
     if (match(TokType::TOKEN_EQUAL)) {
         auto initializer = parseInitalizer();
@@ -368,7 +364,7 @@ parseExpressionStatement() {
                               .initializer = std::nullopt};
 }
 
-[[nodiscard]] st::Declaration parseDeclaration() {
+st::Declaration parseDeclaration() {
     const auto declspecs = parseDeclarationSpecs();
     // hack obvs
     auto initDeclarator = parseInitDeclarator();
@@ -376,21 +372,20 @@ parseExpressionStatement() {
                            .initDeclarator = std::move(initDeclarator)};
 }
 
-[[nodiscard]] std::unique_ptr<st::FuncDef> parseFunctionDefinition() {
+std::unique_ptr<st::FuncDef> parseFunctionDefinition() {
     const auto declspecs = parseDeclarationSpecs();
     const auto decl = parseDeclarator();
     st::CompoundStatement body = parseCompoundStatement();
     return std::make_unique<st::FuncDef>(declspecs, decl, std::move(body));
 }
 
-[[nodiscard]] std::optional<st::ExternalDeclaration>
-parseExternalDeclaration() {
+std::optional<st::ExternalDeclaration> parseExternalDeclaration() {
     const auto nxt = peek();
     if (nxt.type == TokType::TOKEN_SEMICOLON) {
         advance();
         return std::nullopt;
     }
-    if (isFuncBegin()) {
+    if (isFuncBegin(peek(), peekn(1), peekn(2))) {
         auto fd = parseFunctionDefinition();
         return st::ExternalDeclaration(std::move(fd));
     }
@@ -398,7 +393,7 @@ parseExternalDeclaration() {
     return st::ExternalDeclaration(std::move(decl));
 }
 
-[[nodiscard]] st::Program parse(const std::vector<Token> &tokens) {
+st::Program parse(const std::vector<Token> &tokens) {
     g_tokens = tokens;
     std::vector<st::ExternalDeclaration> nodes;
     while (isAtEnd() == false) {

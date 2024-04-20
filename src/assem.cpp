@@ -8,37 +8,6 @@
 
 namespace qa_ir {
 
-struct Ctx {
-    int counter;
-    int labelCounter;
-    std::map<std::string, int> variableUsage;
-    std::map<std::string, const ast::Node *> variables;
-
-    Temp newTemp(int size) {
-        assert(size != 0);
-        return Temp{counter++, size};
-    }
-
-    Value AddVariable(const ast::Node *node) {
-        auto name = node->variableName;
-        variableUsage[name]++;
-        variables[name] = node;
-        const auto size = node->variableType.size;
-        return Variable{name, variableUsage[name], size};
-    }
-
-    Value getVariable(const std::string &name) {
-        return Variable{name, variableUsage[name],
-                        variables[name]->variableType.size};
-    }
-
-    Label newLabel() {
-        auto label = "L" + std::to_string(labelCounter);
-        labelCounter++;
-        return Label{label};
-    }
-};
-
 void MunchStmt(std::vector<Operation> &ins,
                const std::unique_ptr<ast::Node> &node, Ctx &ctx);
 
@@ -142,6 +111,51 @@ void GenerateIRForMovNode(std::vector<Operation> &ins,
                                  std::to_string(static_cast<int>(node->lhs->type)));
     }
 }
+
+void GenerateIRForForLoop(std::vector<Operation> &ins,
+                          const std::unique_ptr<ast::Node> &node, Ctx &ctx) {
+    // the init code
+    MunchStmt(ins, node->forInit, ctx);
+    // loop conditional then jump label
+    auto bottom_loop_label = ctx.newLabel();
+    auto bottom_loop_label_instruction = LabelDef{.label = bottom_loop_label};
+    // the instruction to jump to the conditional then update label
+    auto jump_instruction = Jump{.label = bottom_loop_label};
+    ins.push_back(jump_instruction);
+    auto loop_body_and_update_label = ctx.newLabel();
+    auto loop_body_and_update_label_instruction = LabelDef{.label = loop_body_and_update_label};
+    ins.push_back(loop_body_and_update_label_instruction);
+    for (const auto &stmt : node->forBody) {
+        MunchStmt(ins, stmt, ctx);
+    }
+    // then the instruction to update
+    if (node->forUpdate.has_value()) {
+        auto update_instructions = std::vector<Operation> {};
+        const auto &update = node->forUpdate.value();
+        MunchStmt(update_instructions, update, ctx);
+        ins.insert(ins.end(), update_instructions.begin(), update_instructions.end());
+    }
+    // then define the bottom loop label
+    ins.push_back(bottom_loop_label_instruction);
+    auto exit_loop_label = ctx.newLabel();
+    auto exit_loop_label_instruction = LabelDef{.label = exit_loop_label};
+    if (node->forCondition) {
+        auto condition = node->forCondition.value().get();
+        auto lhs = GenerateIRForRhs(ins, condition->lhs.get(), ctx);
+        auto rhs = GenerateIRForRhs(ins, condition->rhs.get(), ctx);
+        auto cmp_instruction = Compare{.left = lhs, .right = rhs};
+        ins.push_back(cmp_instruction);
+        if (condition->binOpKind == ast::BinOpKind::Gt) {
+            auto conditional_jump_instruction = ConditionalJumpGreater{.trueLabel = loop_body_and_update_label, .falseLabel = exit_loop_label};
+            ins.push_back(conditional_jump_instruction);
+        }
+    } else {
+        auto jump_back_to_top = Jump{.label= loop_body_and_update_label};
+        ins.push_back(jump_back_to_top);
+    }
+    ins.push_back(exit_loop_label_instruction);
+}
+
 /*
 * Things like .. if (a) have already been converted to if (a == 0) with flipped then / else
 */
@@ -214,6 +228,10 @@ void MunchStmt(std::vector<Operation> &ins,
         auto dst = GenerateIRForRhs(ins, node.get(), ctx);
         return;
     }
+    case ast::NodeType::ForLoop: {
+        GenerateIRForForLoop(ins, node, ctx);
+        return;
+    }
     default:
         throw std::runtime_error("MunchStmt not implemented for type: " +
                                  std::to_string(static_cast<int>(node->type)));
@@ -230,7 +248,7 @@ Produce_IR(const std::vector<std::unique_ptr<ast::Node>> &nodes) {
         }
         const auto name = node->functionName;
         std::vector<Operation> instructions;
-        for (auto [p, idx] = std::tuple{node->params.begin(), 0}; p != node->params.end(); ++p, ++idx) {
+        for (auto [p, idx] = std::tuple{node->params.begin(), static_cast<size_t>(0)}; p != node->params.end(); ++p, ++idx) {
             if (idx >= target::param_regs.size()) {
                 auto var = ast::makeNewVar(p->name, p->type);
                 auto dst = ctx.AddVariable(var.get());

@@ -1,5 +1,7 @@
-CC := clang++
-CXXFLAGS := -g -Wall -Wextra -Wshadow -Weffc++ -Wreorder -Wmissing-declarations -Wextra-semi -Wsign-conversion	-Wswitch-default  -Wuninitialized -Wnull-dereference -Wdouble-promotion -Wnon-virtual-dtor -pedantic -Wunused-function -Wold-style-cast -Wunused -Woverloaded-virtual -Wconversion -std=c++2b -g  
+CC := g++
+CXXFLAGS_HARSH := -g -Wall -Wextra -Werror -Wshadow -Weffc++ -Wreorder -Wmissing-declarations -Wextra-semi -Wsign-conversion	-Wswitch-default  -Wuninitialized -Wnull-dereference -Wdouble-promotion -Wnon-virtual-dtor -pedantic -Wunused-function -Wold-style-cast -Wunused -Woverloaded-virtual -Wconversion -std=c++2b -g  
+
+CXXFLAGS := -g -Wno-missing-declarations   -std=c++2b 
 
 
 SRC_DIR := ./src
@@ -26,7 +28,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	$(CC) $(CXXFLAGS) -MMD -c $< -o $@
 
 lint:
-	clang-tidy  $(SRC_FILES) -- $(CXXFLAGS)
+	clang-tidy --config-file=.clang-tidy  $(SRC_FILES) -- $(CXXFLAGS)
 
 format:
 	astyle -xe --style=google --attach-return-type --align-pointer=name --indent=spaces=4 \

@@ -122,6 +122,11 @@ int Ctx::get_stack_offset() const {
     return stackOffset;
 }
 
+void Ctx::define_stack_pushed_variable(const std::string &name) {
+    variable_offset[name] = - stackPassedParameterOffset;
+    stackPassedParameterOffset += 8;
+}
+
 std::vector<Instruction> Ctx::toLocation(Location l, qa_ir::Value v) {
     return std::visit(
     [this](auto &&arg1, auto &&arg2) {
@@ -130,7 +135,7 @@ std::vector<Instruction> Ctx::toLocation(Location l, qa_ir::Value v) {
     l, v);
 }
 
-[[nodiscard]] std::vector<Instruction> LowerMoveInstruction(qa_ir::Mov move,
+[[nodiscard]] std::vector<Instruction> LowerInstruction(qa_ir::Mov move,
         Ctx &ctx) {
     auto dest = move.dst;
     auto src = move.src;
@@ -138,7 +143,7 @@ std::vector<Instruction> Ctx::toLocation(Location l, qa_ir::Value v) {
     return ctx.toLocation(destLocation, src);
 }
 
-[[nodiscard]] std::vector<Instruction> LowerReturnInstruction(qa_ir::Ret ret,
+[[nodiscard]] std::vector<Instruction> LowerInstruction(qa_ir::Ret ret,
         Ctx &ctx) {
     const auto returnValue = ret.value;
     const auto returnValueSize = qa_ir::SizeOf(returnValue);
@@ -305,12 +310,12 @@ LowerArth(ast::BinOpKind kind, std::optional<qa_ir::Value> dst,
 #pragma clang diagnostic ignored "-Wunused-parameter"
 
 [[nodiscard]] std::vector<Instruction>
-LowerLabelDefInstruction(qa_ir::LabelDef label, Ctx &ctx) {
+LowerInstruction(qa_ir::LabelDef label, Ctx &ctx) {
     return {Label{.name = label.label.name}};
 }
 
 [[nodiscard]] std::vector<Instruction>
-LowerConditionalJumpInstruction(qa_ir::ConditionalJumpEqual cj, Ctx &ctx) {
+LowerInstruction(qa_ir::ConditionalJumpEqual cj, Ctx &ctx) {
     std::vector<Instruction> result;
     result.push_back(JumpEq{.label = cj.trueLabel.name});
     result.push_back(Jump{.label = cj.falseLabel.name});
@@ -318,7 +323,7 @@ LowerConditionalJumpInstruction(qa_ir::ConditionalJumpEqual cj, Ctx &ctx) {
 }
 
 [[nodiscard]] std::vector<Instruction>
-LowerConditionalJumpGreaterInstruction(qa_ir::ConditionalJumpGreater cj, Ctx &ctx) {
+LowerInstruction(qa_ir::ConditionalJumpGreater cj, Ctx &ctx) {
     std::vector<Instruction> result;
     result.push_back(JumpGreater{.label = cj.trueLabel.name});
     result.push_back(Jump{.label = cj.falseLabel.name});
@@ -327,35 +332,34 @@ LowerConditionalJumpGreaterInstruction(qa_ir::ConditionalJumpGreater cj, Ctx &ct
 
 #pragma clang diagnostic pop
 
-[[nodiscard]] std::vector<Instruction> LowerCallInstruction(qa_ir::Call call,
+[[nodiscard]] std::vector<Instruction> LowerInstruction(qa_ir::Call call,
         Ctx &ctx) {
     auto dest = ctx.AllocateNew(call.dst);
     std::vector<Instruction> result;
-    for (int i = call.args.size() - 1; i >= 0 ; i--) {
-        if (i >= 6) {
-            const qa_ir::Value arg = call.args[i];
-            if (std::holds_alternative<int>(arg)) {
-                PushI push = PushI{.src = std::get<int>(arg)};
-                result.push_back(push);
+    for (auto it = call.args.rbegin(); it != call.args.rend(); ++it) {
+        auto dist = std::distance(call.args.rbegin(), it);
+        std::size_t index = static_cast<std::size_t>(dist);
+        if (index >= 6) {
+            if (std::holds_alternative<int>(*it)) {
+                result.push_back(PushI{.src = std::get<int>(*it)});
                 continue;
             }
-            if (std::holds_alternative<qa_ir::Variable>(arg)) {
-                const auto reg = ctx.NewRegister(SizeOf(arg));
-                const auto variable = std::get<qa_ir::Variable>(arg);
+            if (std::holds_alternative<qa_ir::Variable>(*it)) {
+                const auto reg = ctx.NewRegister(SizeOf(*it));
+                const auto variable = std::get<qa_ir::Variable>(*it);
                 const auto variableOffset = ctx.variable_offset.at(variable.name);
                 result.push_back(
                           Load{.dst = reg, .src = StackLocation{.offset = variableOffset}});
                 result.push_back(Push{.src = reg});
                 continue;
             }
-            throw std::runtime_error("can't handle non hardcoded int for >= 6");
+            throw std::runtime_error("can't handle non-hardcoded int for >= 6");
         }
-        const auto arg = call.args[i];
-        const auto argbase = target::param_regs[i];
-        const auto argsize = SizeOf(arg);
+        const auto argbase = target::param_regs.at(index);
+        const auto argsize = SizeOf(*it);
         const auto argreg =
             target::HardcodedRegister{.reg = argbase, .size = argsize};
-        auto argToParamRegInstructions = ctx.toLocation(argreg, arg);
+        auto argToParamRegInstructions = ctx.toLocation(argreg, *it);
         result.insert(result.end(), argToParamRegInstructions.begin(),
                       argToParamRegInstructions.end());
     }
@@ -370,13 +374,13 @@ LowerConditionalJumpGreaterInstruction(qa_ir::ConditionalJumpGreater cj, Ctx &ct
     return result;
 }
 
-[[nodiscard]] std::vector<Instruction> LowerMovRInstruction(qa_ir::MovR move,
+[[nodiscard]] std::vector<Instruction> LowerInstruction(qa_ir::MovR move,
         Ctx &ctx) {
     const auto dst = ctx.AllocateNew(move.dst);
     return ctx.toLocation(dst, move.src);
 }
 
-[[nodiscard]] std::vector<Instruction> LowerAddrInstruction(qa_ir::Addr addr,
+[[nodiscard]] std::vector<Instruction> LowerInstruction(qa_ir::Addr addr,
         Ctx &ctx) {
     std::vector<Instruction> result;
     const auto temp = std::get<qa_ir::Temp>(addr.dst);
@@ -388,7 +392,7 @@ LowerConditionalJumpGreaterInstruction(qa_ir::ConditionalJumpGreater cj, Ctx &ct
     return result;
 }
 
-[[nodiscard]] std::vector<Instruction> LowerDerefInstruction(qa_ir::Deref deref,
+[[nodiscard]] std::vector<Instruction> LowerInstruction(qa_ir::Deref deref,
         Ctx &ctx) {
     std::vector<Instruction> result;
     const auto temp = std::get<qa_ir::Temp>(deref.dst);
@@ -409,8 +413,7 @@ LowerConditionalJumpGreaterInstruction(qa_ir::ConditionalJumpGreater cj, Ctx &ct
     return result;
 }
 
-[[nodiscard]] std::vector<Instruction>
-LowerDerefStoreInstruction(qa_ir::DerefStore deref, Ctx &ctx) {
+[[nodiscard]]  auto LowerInstruction(qa_ir::DerefStore deref, Ctx &ctx) {
     std::vector<Instruction> result;
     // variable_dest holds the address of the variable
     const auto variable_dest = deref.dst;
@@ -429,60 +432,46 @@ LowerDerefStoreInstruction(qa_ir::DerefStore deref, Ctx &ctx) {
     return result;
 }
 
-[[nodiscard]] std::vector<Instruction>
-LowerInstruction(const qa_ir::Operation &op, Ctx &ctx) {
-    return std::visit(
-    [&](auto &&arg) -> std::vector<Instruction> {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, qa_ir::Mov>) {
-            return LowerMoveInstruction(arg, ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::Ret>) {
-            return LowerReturnInstruction(arg, ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::Add>) {
-            return LowerArth(ast::BinOpKind::Add, arg.dst, arg.left, arg.right,
-                             ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::Sub>) {
-            return LowerArth(ast::BinOpKind::Sub, arg.dst, arg.left, arg.right,
-                             ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::Equal>) {
-            return LowerArth(ast::BinOpKind::Eq, arg.dst, arg.left, arg.right,
-                             ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::LabelDef>) {
-            return LowerLabelDefInstruction(arg, ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::ConditionalJumpEqual>) {
-            return LowerConditionalJumpInstruction(arg, ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::ConditionalJumpGreater>) {
-            return LowerConditionalJumpGreaterInstruction(arg, ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::Compare>) {
-            return LowerArth(ast::BinOpKind::Eq, std::nullopt, arg.left,
-                             arg.right, ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::Call>) {
-            return LowerCallInstruction(arg, ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::MovR>) {
-            return LowerMovRInstruction(arg, ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::Addr>) {
-            return LowerAddrInstruction(arg, ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::Deref>) {
-            return LowerDerefInstruction(arg, ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::DerefStore>) {
-            return LowerDerefStoreInstruction(arg, ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::GreaterThan>) {
-            return LowerArth(ast::BinOpKind::Gt, arg.dst, arg.left, arg.right,
-                             ctx);
-        } else if constexpr (std::is_same_v<T, qa_ir::DefineStackPushed>) {
-            const auto size = arg.size;
-            const auto name = arg.name;
-            ctx.variable_offset[name] = - ctx.stackPassedParameterOffset;
-            // 8 not size because (push) is 8 bytes
-            ctx.stackPassedParameterOffset += 8;
-            return {};
-        }
+auto LowerInstruction(qa_ir::Add arg, Ctx &ctx) -> std::vector<Instruction> {
+    return LowerArth(ast::BinOpKind::Add, arg.dst, arg.left, arg.right,
+                     ctx);
+}
 
-        else {
-            throw std::runtime_error(
-                "LowerInstruction not implemented for type: " +
-                std::to_string(static_cast<int>(op.index())));
-        }
+auto LowerInstruction(qa_ir::Sub arg, Ctx &ctx) -> std::vector<Instruction> {
+    return LowerArth(ast::BinOpKind::Sub, arg.dst, arg.left, arg.right,
+                     ctx);
+}
+
+auto LowerInstruction(qa_ir::Equal arg, Ctx &ctx) -> std::vector<Instruction> {
+    return LowerArth(ast::BinOpKind::Eq, arg.dst, arg.left, arg.right,
+                     ctx);
+}
+
+auto LowerInstruction(qa_ir::GreaterThan arg, Ctx &ctx) -> std::vector<Instruction> {
+    return LowerArth(ast::BinOpKind::Gt, arg.dst, arg.left, arg.right,
+                     ctx);
+}
+
+auto LowerInstruction(qa_ir::Compare arg, Ctx &ctx) -> std::vector<Instruction> {
+    return LowerArth(ast::BinOpKind::Eq, std::nullopt, arg.left,
+                     arg.right, ctx);
+}
+
+auto LowerInstruction(qa_ir::DefineStackPushed arg, Ctx &ctx) -> std::vector<Instruction> {
+    auto name = arg.name;
+    ctx.define_stack_pushed_variable(name);
+    return {};
+}
+
+auto LowerInstruction(qa_ir::Jump arg, Ctx &ctx) -> std::vector<Instruction> {
+    return {Jump{.label = arg.label.name}};
+}
+
+[[nodiscard]] std::vector<Instruction>
+GenerateInstructionsForOperation(const qa_ir::Operation &op, Ctx &ctx) {
+    return std::visit(
+    [&ctx](auto &&arg) {
+        return LowerInstruction(arg, ctx);
     },
     op);
 }
@@ -494,7 +483,7 @@ LowerIR(const std::vector<qa_ir::Frame> &frames) {
         std::vector<Instruction> instructions;
         Ctx ctx = Ctx{};
         for (const auto &op : f.instructions) {
-            auto ins = LowerInstruction(op, ctx);
+            auto ins = GenerateInstructionsForOperation(op, ctx);
             if (ins.empty()) {
                 continue;
             }

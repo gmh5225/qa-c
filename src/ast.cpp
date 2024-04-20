@@ -56,6 +56,19 @@ std::unique_ptr<Node> makeNewMove(std::unique_ptr<ast::Node> left,
     return node;
 }
 
+std::unique_ptr<Node> makeNewForLoop(std::unique_ptr<ast::Node> init,
+                                     std::optional<std::unique_ptr<ast::Node>> condition,
+                                     std::optional<std::unique_ptr<ast::Node>> update,
+                                     std::vector<std::unique_ptr<ast::Node>> body) {
+    auto node = std::make_unique<Node>();
+    node->type = NodeType::ForLoop;
+    node->forInit = std::move(init);
+    node->forCondition = std::move(condition);
+    node->forUpdate = std::move(update);
+    node->forBody = std::move(body);
+    return node;
+}
+
 std::unique_ptr<Node> makeNewMemWrite(std::unique_ptr<ast::Node> expr) {
     auto node = std::make_unique<Node>();
     node->type = NodeType::Deref;

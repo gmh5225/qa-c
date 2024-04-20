@@ -12,16 +12,18 @@ struct Ctx {
   public:
     std::map<std::string, int> variable_offset;
     std::map<int, VirtualRegister> temp_register_mapping;
-    Location AllocateNew(qa_ir::Value v);
-    Register AllocateNewForTemp(qa_ir::Temp t);
-    VirtualRegister NewRegister(int size);
-    std::vector<Instruction> toLocation(Location l, qa_ir::Value v);
+    [[nodiscard]] Location AllocateNew(qa_ir::Value v);
+    [[nodiscard]] Register AllocateNewForTemp(qa_ir::Temp t);
+    [[nodiscard]] VirtualRegister NewRegister(int size);
+    [[nodiscard]]std::vector<Instruction> toLocation(Location l, qa_ir::Value v);
     [[nodiscard]] int get_stack_offset() const;
 
-    int stackPassedParameterOffset = 16;
+    void define_stack_pushed_variable(const std::string &name);
+
   private:
     int tempCounter = 0;
     int stackOffset = 0;
+    int stackPassedParameterOffset = 16;
 
 };
 
