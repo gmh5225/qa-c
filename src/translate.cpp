@@ -69,6 +69,7 @@ translate(const std::unique_ptr<st::UnaryExpression> &expr, Ctx &ctx) -> std::un
         {st::AdditiveExpressionType::SUB, ast::BinOpKind::Sub},
         {st::AdditiveExpressionType::EQ, ast::BinOpKind::Eq},
         {st::AdditiveExpressionType::GT, ast::BinOpKind::Gt},
+        {st::AdditiveExpressionType::LT, ast::BinOpKind::Lt},
     };
     if (mp.find(expr->type) != mp.end()) {
         return ast::makeNewBinOp(std::move(lhs), std::move(rhs), mp[expr->type]);

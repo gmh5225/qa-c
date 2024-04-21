@@ -183,7 +183,10 @@ std::ostream &operator<<(std::ostream &os, const Instruction &ins) {
     } else if (std::holds_alternative<SubMI>(ins)) {
         const auto subMI = std::get<SubMI>(ins);
         os << "subMI " << subMI.value << " -> " << subMI.dst;
-    } else {
+    } else if (std::holds_alternative<JumpLess>(ins)) {
+        const auto jumpLess = std::get<JumpLess>(ins);
+        os << "jl " << jumpLess.label;
+    }  else {
         throw std::runtime_error("Unsupported instruction type");
     }
     return os;

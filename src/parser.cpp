@@ -216,6 +216,13 @@ st::Expression parseRelationalExpression() {
         return std::make_unique<st::AdditiveExpression>(std::move(lhs),
                 std::move(rhs), op);
     }
+    if (match(TOKEN_LESS)) {
+        auto op_token = previous();
+        auto op = st::AdditiveExpressionType::LT;
+        auto rhs = parseAdditiveExpression();
+        return std::make_unique<st::AdditiveExpression>(std::move(lhs),
+                std::move(rhs), op);
+    }
     return lhs;
 }
 

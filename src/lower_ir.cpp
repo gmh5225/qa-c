@@ -372,6 +372,13 @@ LowerInstruction(qa_ir::ConditionalJumpGreater cj, Ctx &ctx) {
     return result;
 }
 
+auto LowerInstruction(qa_ir::ConditionalJumpLess cj, Ctx &ctx) -> std::vector<Instruction> {
+    std::vector<Instruction> result;
+    result.push_back(JumpLess{.label = cj.trueLabel.name});
+    result.push_back(Jump{.label = cj.falseLabel.name});
+    return result;
+}
+
 #pragma clang diagnostic pop
 
 [[nodiscard]] std::vector<Instruction> LowerInstruction(qa_ir::Call call,

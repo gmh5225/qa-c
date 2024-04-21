@@ -100,6 +100,10 @@ struct JumpGreater {
     std::string label;
 };
 
+struct JumpLess {
+    std::string label;
+};
+
 struct Jump {
     std::string label;
 };
@@ -193,7 +197,7 @@ struct Push {
 using Instruction =
     std::variant<Mov, LoadI, StoreI, Store, Load, Jump, AddI, Add, SubI, Sub, AddMI, SubMI,
     Cmp, CmpI, SetEAl, SetGAl, Label, JumpEq, Call, Lea, IndirectLoad, JumpGreater,
-    IndirectStore, PushI, Push>;
+    IndirectStore, PushI, Push, JumpLess>;
 
 std::optional<int> get_src_virtual_id_if_present(const Instruction &ins);
 std::optional<int> get_dest_virtual_id_if_present(const Instruction &ins);

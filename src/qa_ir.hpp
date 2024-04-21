@@ -97,6 +97,11 @@ struct ConditionalJumpGreater {
     Label falseLabel;
 };
 
+struct ConditionalJumpLess {
+    Label trueLabel;
+    Label falseLabel;
+};
+
 struct Jump {
     Label label;
 };
@@ -125,7 +130,7 @@ struct DefineStackPushed {
 
 using Operation =
     std::variant<Mov, Ret, Add, Sub, MovR,Addr, DefineStackPushed, Deref, Compare, Jump,
-    Equal, ConditionalJumpEqual,ConditionalJumpGreater, LabelDef, Call, DerefStore, GreaterThan>;
+    Equal, ConditionalJumpEqual,ConditionalJumpGreater, LabelDef, Call, DerefStore, GreaterThan, ConditionalJumpLess>;
 
 using CondJ =
     std::variant<ConditionalJumpEqual, ConditionalJumpGreater>;

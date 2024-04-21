@@ -26,7 +26,7 @@ struct Ctx {
     int stackPassedParameterOffset = 16;
 
 };
-
+[[nodiscard]] auto LowerInstruction(qa_ir::ConditionalJumpLess cj, Ctx &ctx) -> std::vector<Instruction> ;
 [[nodiscard]] auto LowerInstruction(qa_ir::LabelDef label, Ctx &ctx) -> std::vector<Instruction>;
 [[nodiscard]] std::vector<Frame> LowerIR(const std::vector<qa_ir::Frame> &ops);
 } // namespace target

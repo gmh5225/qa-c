@@ -146,6 +146,13 @@ void GenerateIRForForLoop(std::vector<Operation> &ins,
         if (condition->binOpKind == ast::BinOpKind::Gt) {
             auto conditional_jump_instruction = ConditionalJumpGreater{.trueLabel = loop_body_and_update_label, .falseLabel = exit_loop_label};
             ins.emplace_back(conditional_jump_instruction);
+        } else if (condition->binOpKind == ast::BinOpKind::Lt) {
+            auto conditional_jump_instruction = ConditionalJumpLess{.trueLabel = loop_body_and_update_label, .falseLabel = exit_loop_label};
+            ins.emplace_back(conditional_jump_instruction);
+        } else {
+            throw std::runtime_error(
+                "GenerateIRForForLoop not implemented for binop: " +
+                std::to_string(static_cast<int>(condition->binOpKind)));
         }
     } else {
         auto jump_back_to_top = Jump{.label= loop_body_and_update_label};

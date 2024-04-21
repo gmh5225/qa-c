@@ -159,6 +159,9 @@ void generateASMForInstruction(const target::Instruction &is, Ctx &ctx) {
         std::string sourceSizeString = std::string("dword");
         ctx.AddInstruction("add " + sourceSizeString + to_asm(dst) + ", " +
                            std::to_string(v));
+    } else if (std::holds_alternative<target::JumpLess>(is)) {
+        const auto jump = std::get<target::JumpLess>(is);
+        ctx.AddInstruction("jl ." + jump.label);
     } else {
         throw std::runtime_error("Unsupported instruction type" +
                                  std::to_string(is.index()));
