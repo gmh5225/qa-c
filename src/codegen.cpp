@@ -145,6 +145,20 @@ void generateASMForInstruction(const target::Instruction &is, Ctx &ctx) {
         const auto push = std::get<target::Push>(is);
         const auto src = std::get<target::HardcodedRegister>(push.src);
         ctx.AddInstruction("push " + target::to_asm(src.reg, 8));
+    } else if (std::holds_alternative<target::AddMI>(is)) {
+        const auto addMI = std::get<target::AddMI>(is);
+        const target::StackLocation dst = addMI.dst;
+        const auto v = addMI.value;
+        const auto sourceSizeString = std::string("dword");
+        ctx.AddInstruction("add " + sourceSizeString + to_asm(dst) + ", " +
+                           std::to_string(v));
+    }  else if (std::holds_alternative<target::SubMI>(is)) {
+        const auto subMI = std::get<target::SubMI>(is);
+        const target::StackLocation dst = subMI.dst;
+        const auto v = subMI.value;
+        std::string sourceSizeString = std::string("dword");
+        ctx.AddInstruction("add " + sourceSizeString + to_asm(dst) + ", " +
+                           std::to_string(v));
     } else {
         throw std::runtime_error("Unsupported instruction type" +
                                  std::to_string(is.index()));

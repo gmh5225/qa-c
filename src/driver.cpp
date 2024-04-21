@@ -67,7 +67,7 @@ void write_to_file(const std::string &code) {
 
 int runfile(const char *sourcefile) {
     const auto contents = readfile(sourcefile);
-    const auto tokens = lex(contents);
+    const auto tokens = lexer::lex(contents);
     const auto st = parse(tokens);
     print_syntax_tree(st);
     const auto ast = translate(st);
@@ -78,7 +78,7 @@ int runfile(const char *sourcefile) {
     std::cout << "-----------------" << std::endl;
     std::cout << "Lowered IR:" << std::endl;
     print_lower_ir(lowered_frames);
-    auto rewritten = allocator::rewrite(lowered_frames);
+    auto rewritten = target::rewrite(lowered_frames);
     std::cout << "-----------------" << std::endl;
     std::cout << "Rewritten IR:" << std::endl;
     print_lower_ir(rewritten);

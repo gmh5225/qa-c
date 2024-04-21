@@ -51,6 +51,9 @@ translate(const std::unique_ptr<st::UnaryExpression> &expr, Ctx &ctx) -> std::un
         return ast::makeNewMemWrite(std::move(e));
     } else if (expr->type == st::UnaryExpressionType::ADDR) {
         return ast::makeNewAddr(std::move(e));
+    } else if (expr->type == st::UnaryExpressionType::NEG) {
+        return ast::makeNewBinOp(ast::makeConstInt(0), std::move(e),
+                                 ast::BinOpKind::Sub);
     }
 
     throw std::runtime_error(
@@ -76,7 +79,6 @@ translate(const std::unique_ptr<st::UnaryExpression> &expr, Ctx &ctx) -> std::un
 
 auto translate(const std::unique_ptr<st::ForStatement> &stmt, Ctx &ctx) -> std::unique_ptr<ast::Node> {
     const st::ForDeclaration &init = stmt->init;
-    ast::Node *initNode = nullptr;
     const auto iden =
         init.initDeclarator.value().declarator.directDeclarator.VariableIden();
     auto datatype = asttraits::toDataType(init);
@@ -103,7 +105,7 @@ auto translate(const std::unique_ptr<st::ForStatement> &stmt, Ctx &ctx) -> std::
     auto body = translate(*stmt->body.get(), ctx);
     auto result =  ast::makeNewForLoop(std::move(forInit), std::move(forCondition), std::move(forUpdate),
                                        std::move(body));
-    return std::move(result);
+    return result;
 }
 
 auto translate(const std::unique_ptr<st::FunctionCallExpression> &expr, Ctx &ctx) -> std::unique_ptr<ast::Node> {

@@ -9,6 +9,8 @@
 
 namespace target {
 
+const int address_size = 8;
+
 // all registers used.
 // x86-64 registers
 enum class BaseRegister {
@@ -111,6 +113,16 @@ struct AddI {
     int value;
 };
 
+struct AddMI {
+    StackLocation dst;
+    int value;
+};
+
+struct SubMI {
+    StackLocation dst;
+    int value;
+};
+
 struct SubI {
     Register dst;
     int value;
@@ -179,7 +191,7 @@ struct Push {
 };
 
 using Instruction =
-    std::variant<Mov, LoadI, StoreI, Store, Load, Jump, AddI, Add, SubI, Sub,
+    std::variant<Mov, LoadI, StoreI, Store, Load, Jump, AddI, Add, SubI, Sub, AddMI, SubMI,
     Cmp, CmpI, SetEAl, SetGAl, Label, JumpEq, Call, Lea, IndirectLoad, JumpGreater,
     IndirectStore, PushI, Push>;
 

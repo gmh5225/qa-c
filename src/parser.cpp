@@ -12,7 +12,7 @@
 static unsigned long current = 0;
 std::vector<Token> g_tokens;
 
-static Token peek() {
+auto peek() -> Token {
     if (current >= g_tokens.size()) {
         return Token{TokType::TOKEN_FEOF, ""};
     }
@@ -26,14 +26,14 @@ Token peekn(size_t n) {
     return g_tokens[current + n];
 }
 
-static Token advance() {
+Token advance() {
     if (current >= g_tokens.size()) {
         return Token{TokType::TOKEN_FEOF, ""};
     }
     return g_tokens[current++];
 }
 
-static Token previous() {
+Token previous() {
     return g_tokens[current - 1];
 }
 
@@ -45,7 +45,7 @@ bool match(TokType type) {
     return false;
 }
 
-static bool isAtEnd() {
+bool isAtEnd() {
     return peek().type == TokType::TOKEN_FEOF;
 }
 
@@ -62,10 +62,10 @@ auto parseDeclarationSpecs() -> std::vector<st::DeclarationSpecifier>  {
     while (isTypeSpecifier(peek())) {
         if (peek().type == TokType::TOKEN_T_INT) {
             declspecs.push_back(st::DeclarationSpecifier{
-                st::TypeSpecifier{.type = st::TypeSpecifier::Type::INT}});
+                st::TypeSpecifier{.type = st::TypeSpecifier::Type::INT, .iden = ""}});
         } else {
             const auto ts = st::TypeSpecifier{.type = st::TypeSpecifier::Type::IDEN,
-                                              .iden = peek().lexeme};
+                                              .iden = peek().lexeme,};
             const auto ds = st::DeclarationSpecifier{.typespecifier = ts};
             declspecs.push_back(ds);
         }
@@ -126,13 +126,13 @@ st::DirectDeclarator parseDirectDeclartor() {
                                 .declarator = vd};
 }
 
-static st::Declarator parseDeclarator() {
+auto parseDeclarator() -> st::Declarator {
     const auto ptr = parsePointer();
     const auto dd = parseDirectDeclartor();
     return st::Declarator{.pointer = ptr, .directDeclarator = dd};
 }
 
-std::unique_ptr<st::PrimaryExpression> parsePrimaryExpression() {
+auto parsePrimaryExpression() -> st::Expression {
     if (peek().type == TokType::TOKEN_IDENTIFIER) {
         const auto lexeme = peek().lexeme;
         advance();
@@ -142,6 +142,12 @@ std::unique_ptr<st::PrimaryExpression> parsePrimaryExpression() {
         const auto lexeme = peek().lexeme;
         advance();
         return std::make_unique<st::PrimaryExpression>(std::stoi(lexeme));
+    }
+    if (peek().type == TokType::TOKEN_LEFT_PAREN) {
+        consume(TokType::TOKEN_LEFT_PAREN);
+        auto expr = parseExpression();
+        consume(TokType::TOKEN_RIGHT_PAREN);
+        return expr;
     }
     throw std::runtime_error("Expected primary expression found " +
                              peek().lexeme);
@@ -160,7 +166,8 @@ auto  parsePostfixExpression() -> st::Expression {
         }
         if (match(TokType::TOKEN_RIGHT_PAREN)) {
         }
-        const auto name = primary.get()->idenValue;
+        const auto primary_expr = std::get<std::unique_ptr<st::PrimaryExpression>>(primary).get();
+        const auto name = primary_expr->idenValue;
         return std::make_unique<st::FunctionCallExpression>(name, std::move(args));
     }
     return primary;
@@ -175,6 +182,11 @@ st::Expression parseUnaryExpression() {
     if (match(TokType::TOKEN_AMPERSAND)) {
         auto expr = parseUnaryExpression();
         return std::make_unique<st::UnaryExpression>(st::UnaryExpressionType::ADDR,
+                std::move(expr));
+    }
+    if (match(TokType::TOKEN_MINUS)) {
+        auto expr = parseUnaryExpression();
+        return std::make_unique<st::UnaryExpression>(st::UnaryExpressionType::NEG,
                 std::move(expr));
     }
     return parsePostfixExpression();

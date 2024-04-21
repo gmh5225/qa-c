@@ -1,7 +1,15 @@
-#include "lower_ir.hpp"
 #include <map>
 #include <stdexcept>
 #include <variant>
+#include <concepts>
+#include <vector>
+#include <functional>
+#include <optional>
+#include <utility>
+#include <stdexcept>
+
+#include "ast.hpp"
+#include "lower_ir.hpp"
 
 namespace target {
 
@@ -19,16 +27,6 @@ namespace target {
 }
 
 [[nodiscard]] std::vector<Instruction>
-_Value_To_Location(Register l, std::monostate m, Ctx *ctx) {
-    throw std::runtime_error("Cannot convert monostate to location");
-}
-
-[[nodiscard]] std::vector<Instruction>
-_Value_To_Location(StackLocation l, std::monostate m, Ctx *ctx) {
-    throw std::runtime_error("Cannot convert monostate to location");
-}
-
-[[nodiscard]] std::vector<Instruction>
 _Value_To_Location(StackLocation l_dest, qa_ir::Temp t_src, Ctx *ctx) {
     const auto reg = ctx->AllocateNewForTemp(t_src);
     return {Store{.dst = l_dest, .src = reg}};
@@ -41,7 +39,7 @@ _Value_To_Location(Register r, qa_ir::Temp t, Ctx *ctx) {
 }
 
 [[nodiscard]] std::vector<Instruction>
-_Value_To_Location(Register r, qa_ir::HardcodedRegister t, Ctx *ctx) {
+_Value_To_Location(Register r, target::HardcodedRegister t, Ctx *ctx) {
     throw std::runtime_error(
         "Cannot convert hardcoded register to register"); // just for now
 }
@@ -49,14 +47,13 @@ _Value_To_Location(Register r, qa_ir::HardcodedRegister t, Ctx *ctx) {
 [[nodiscard]] std::vector<Instruction>
 _Value_To_Location(Register r_dst, qa_ir::Variable v_src, Ctx *ctx) {
     const auto variableOffset = ctx->variable_offset.at(v_src.name);
-    return {Load{.dst = r_dst, .src = StackLocation{.offset = variableOffset}}};
+    return {Load{.dst = r_dst, .src = variableOffset}};
 }
 
 [[nodiscard]] std::vector<Instruction>
-_Value_To_Location(StackLocation s_dst, qa_ir::HardcodedRegister r_src,
+_Value_To_Location(StackLocation s_dst, target::HardcodedRegister r_src,
                    Ctx *ctx) {
-    const auto reg = HardcodedRegister{.reg = r_src.reg, .size = r_src.size};
-    return {Store{.dst = s_dst, .src = reg}};
+    return {Store{.dst = s_dst, .src = r_src}};
 }
 
 [[nodiscard]] std::vector<Instruction>
@@ -66,19 +63,30 @@ _Value_To_Location(StackLocation s_dst, qa_ir::Variable v_src, Ctx *ctx) {
     // move variable to register
     const auto variableOffset = ctx->variable_offset.at(v_src.name);
     result.push_back(
-              Load{.dst = reg, .src = StackLocation{.offset = variableOffset}});
+              Load{.dst = reg, .src = variableOffset});
     // store register to stack
     result.push_back(Store{.dst = s_dst, .src = reg});
     return result;
 }
 
-[[nodiscard]] std::vector<Instruction>
-Register_To_Location(Location l, target::Register reg, Ctx *ctx) {
+[[nodiscard]] auto
+Register_To_Location(Location l, target::Register reg, Ctx *ctx) -> Instruction {
     if (auto stackLocation = std::get_if<StackLocation>(&l)) {
-        return {Store{.dst = *stackLocation, .src = reg}};
+        return Store{.dst = *stackLocation, .src = reg};
     }
     if (auto dest_register = std::get_if<Register>(&l)) {
-        return {Mov{.dst = *dest_register, .src = reg}};
+        return Mov{.dst = *dest_register, .src = reg};
+    }
+    throw std::runtime_error("Cannot convert register to location");
+}
+
+[[nodiscard]] auto
+Register_To_Location(Location l, target::Register reg, Ctx &ctx) -> Instruction {
+    if (auto stackLocation = std::get_if<StackLocation>(&l)) {
+        return Store{.dst = *stackLocation, .src = reg};
+    }
+    if (auto dest_register = std::get_if<Register>(&l)) {
+        return Mov{.dst = *dest_register, .src = reg};
     }
     throw std::runtime_error("Cannot convert register to location");
 }
@@ -94,12 +102,12 @@ Location Ctx::AllocateNew(qa_ir::Value v) {
         if (auto it = variable_offset.find(variableName);
                 it == variable_offset.end()) {
             stackOffset += variable->size;
-            variable_offset[variableName] = stackOffset;
+            variable_offset[variableName] = StackLocation{.offset = stackOffset};
         }
-        return StackLocation{.offset = variable_offset.at(variableName)};
+        return variable_offset.at(variableName);
     }
-    if (auto hardcoded = std::get_if<qa_ir::HardcodedRegister>(&v)) {
-        return HardcodedRegister{.reg = hardcoded->reg, .size = hardcoded->size};
+    if (auto hardcoded = std::get_if<target::HardcodedRegister>(&v)) {
+        return *hardcoded;
     }
     throw std::runtime_error("Cannot allocate new location for value");
 }
@@ -123,7 +131,7 @@ int Ctx::get_stack_offset() const {
 }
 
 void Ctx::define_stack_pushed_variable(const std::string &name) {
-    variable_offset[name] = - stackPassedParameterOffset;
+    variable_offset[name] = StackLocation{.offset = -  stackPassedParameterOffset};
     stackPassedParameterOffset += 8;
 }
 
@@ -155,135 +163,179 @@ std::vector<Instruction> Ctx::toLocation(Location l, qa_ir::Value v) {
     return result;
 }
 
-[[nodiscard]] Instruction __Create_Arth_Instruction(ast::BinOpKind kind,
-        VirtualRegister left_reg,
-        int value) {
-    if (kind == ast::BinOpKind::Add) {
-        return {AddI{.dst = left_reg, .value = value}};
+std::vector<Instruction> Create_ArthBin_Instruction_Sequence(ast::BinOpKind kind, std::optional<target::Location> dst,
+        Register reg, int value, Ctx &ctx) {
+    static const std::map<ast::BinOpKind, std::function<Instruction(Register, int)>> ops = {
+        {ast::BinOpKind::Add, [](Register reg, int value) -> Instruction { return AddI{.dst = reg, .value = value}; }},
+        {ast::BinOpKind::Sub, [](Register reg, int value) -> Instruction { return SubI{.dst = reg, .value = value}; }}
+    };
+    auto op_it = ops.find(kind);
+    if (op_it == ops.end()) {
+        throw std::runtime_error("Unsupported operation kind");
     }
-    if (kind == ast::BinOpKind::Sub) {
-        return {SubI{.dst = left_reg, .value = value}};
+    std::vector<Instruction> result = {op_it->second(reg, value)};
+    if (dst.has_value()) {
+        result.push_back(Register_To_Location(dst.value(), reg, ctx));
     }
-    if (kind == ast::BinOpKind::Eq) {
-        return {CmpI{.dst = left_reg, .value = value}};
-    }
-    if (kind == ast::BinOpKind::Gt) {
-        return {CmpI{.dst = left_reg, .value = value}};
-    }
-    throw std::runtime_error("CreateArthInstruction not implemented");
-}
-
-[[nodiscard]] Instruction __Create_Arth_Instruction(ast::BinOpKind kind,
-        VirtualRegister left_reg,
-        VirtualRegister right_reg) {
-    if (kind == ast::BinOpKind::Add) {
-        return {Add{.dst = left_reg, .src = right_reg}};
-    }
-    if (kind == ast::BinOpKind::Sub) {
-        return {Sub{.dst = left_reg, .src = right_reg}};
-    }
-    if (kind == ast::BinOpKind::Eq) {
-        return {Cmp{.dst = left_reg, .src = right_reg}};
-    }
-    if (kind == ast::BinOpKind::Gt) {
-        return {Cmp{.dst = left_reg, .src = right_reg}};
-    }
-    throw std::runtime_error("CreateArthInstruction not implemented");
-}
-
-std::vector<Instruction> appendInstructionsForMoveToDest(target::Location dst, std::vector<Instruction> &result,
-        target::VirtualRegister value_reg,     Ctx &ctx) {
-    const auto move_dest_instructions = Register_To_Location(dst, value_reg, &ctx);
-    result.insert(result.end(), move_dest_instructions.begin(),
-                  move_dest_instructions.end());
     return result;
 }
 
-std::vector<Instruction> finishEqInstructions(std::optional<target::Location> dst, std::vector<Instruction> &result,
-        Ctx &ctx) {
-    auto newReg = ctx.NewRegister(4);
-    result.push_back(SetEAl{.dst = newReg});
-    if (!dst.has_value()) {
-        return result;
+std::vector<Instruction> Create_ArthBin_Instruction_Sequence(ast::BinOpKind kind, std::optional<target::Location> dst,
+        Register result_reg, Register src_reg, Ctx &ctx) {
+    static const std::map<ast::BinOpKind, std::function<Instruction(Register, Register)>> ops = {
+        {ast::BinOpKind::Add, [](Register dst, Register src) -> Instruction { return Add{.dst = dst, .src = src}; }},
+        {ast::BinOpKind::Sub, [](Register dst, Register src) -> Instruction { return Sub{.dst = dst, .src = src}; }}
+    };
+    auto op_it = ops.find(kind);
+    if (op_it == ops.end()) {
+        throw std::runtime_error("Unsupported operation kind");
     }
-    return appendInstructionsForMoveToDest(dst.value(), result, newReg, ctx);
+    std::vector<Instruction> result = {op_it->second(result_reg, src_reg)};
+    if (dst.has_value()) {
+        result.push_back(Register_To_Location(dst.value(), result_reg, ctx));
+    }
+    return result;
 }
 
-std::vector<Instruction> finishGtInstructions(std::optional<target::Location> dst, std::vector<Instruction> &result,
-        Ctx &ctx) {
-    auto newReg = ctx.NewRegister(4);
-    result.push_back(SetGAl{.dst = newReg});
-    if (!dst.has_value()) {
-        return result;
+std::vector<Instruction> Create_Comparison_Instruction_Sequence(ast::BinOpKind kind,
+        std::optional<target::Location> dst, Register reg, int value, Ctx &ctx) {
+    static const std::map<ast::BinOpKind, std::function<void(std::vector<Instruction>&, Register)>> comparisonOps = {
+        {
+            ast::BinOpKind::Eq, [](std::vector<Instruction> &result, Register newReg) {
+                result.push_back(SetEAl{.dst = newReg});
+            }
+        },
+        {
+            ast::BinOpKind::Gt, [](std::vector<Instruction> &result, Register newReg) {
+                result.push_back(SetGAl{.dst = newReg});
+            }
+        }
+    };
+    std::vector<Instruction> result = {CmpI{.dst = reg, .value = value}};
+    Register newReg = ctx.NewRegister(4);
+    auto op_it = comparisonOps.find(kind);
+    if (op_it != comparisonOps.end()) {
+        op_it->second(result, newReg);
+    } else {
+        throw std::runtime_error("Unsupported comparison kind");
     }
-    return appendInstructionsForMoveToDest(dst.value(), result, newReg, ctx);
+    if (dst.has_value()) {
+        result.push_back(Register_To_Location(dst.value(), newReg, ctx));
+    }
+    return result;
 }
 
-[[nodiscard]] std::vector<Instruction>
-InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
-                   qa_ir::Value left, int value, Ctx &ctx) {
-    const auto leftreg = ctx.NewRegister(SizeOf(left));
-    std::vector<Instruction> result = ctx.toLocation(leftreg, left);
-    auto arth_instruction = __Create_Arth_Instruction(kind, leftreg, value);
-    result.push_back(arth_instruction);
-    if (kind == ast::BinOpKind::Eq) {
-        return finishEqInstructions(dst, result, ctx);
+std::vector<Instruction> Create_Comparison_Instruction_Sequence(ast::BinOpKind kind,
+        std::optional<target::Location> dst, Register reg1, Register reg2, Ctx &ctx) {
+    static const std::map<ast::BinOpKind, std::function<void(std::vector<Instruction>&, Register)>> comparisonOps = {
+        {
+            ast::BinOpKind::Eq, [](std::vector<Instruction> &result, Register newReg) {
+                result.push_back(SetEAl{.dst = newReg});
+            }
+        },
+        {
+            ast::BinOpKind::Gt, [](std::vector<Instruction> &result, Register newReg) {
+                result.push_back(SetGAl{.dst = newReg});
+            }
+        }
+    };
+    std::vector<Instruction> result = {Cmp{.dst = reg1, .src = reg2}};
+    Register newReg = ctx.NewRegister(4);
+    auto op_it = comparisonOps.find(kind);
+    if (op_it != comparisonOps.end()) {
+        op_it->second(result, newReg);
+    } else {
+        throw std::runtime_error("Unsupported comparison kind");
     }
-    if (kind == ast::BinOpKind::Gt) {
-        return finishGtInstructions(dst, result, ctx);
+    if (dst.has_value()) {
+        result.push_back(Register_To_Location(dst.value(), newReg, ctx));
     }
-    return appendInstructionsForMoveToDest(dst.value(), result, leftreg, ctx);
+    return result;
 }
 
-[[nodiscard]] std::vector<Instruction>
-InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
-                   qa_ir::Value left, qa_ir::Temp right, Ctx &ctx) {
-    const auto leftreg = ctx.NewRegister(SizeOf(left));
-    std::vector<Instruction> result = ctx.toLocation(leftreg, left);
-    const auto rightreg = ctx.NewRegister(SizeOf(right));
-    const auto rightRegister = ctx.toLocation(rightreg, right);
-    result.insert(result.end(), rightRegister.begin(), rightRegister.end());
-    const auto arth_instruction =
-        __Create_Arth_Instruction(kind, leftreg, rightreg);
-    result.push_back(arth_instruction);
-    if (kind == ast::BinOpKind::Eq) {
-        return finishEqInstructions(dst, result, ctx);
+template<typename T>
+[[nodiscard]] auto Create_Arth_Instruction(ast::BinOpKind kind,
+        std::optional<target::Location> dst,
+        Register result_reg,
+        T rhs, Ctx &ctx) -> std::vector<Instruction> {
+    std::vector<Instruction> result;
+    if (ast::is_arithmetic(kind)) {
+        return Create_ArthBin_Instruction_Sequence(kind, dst, result_reg, rhs, ctx);
     }
-    if (kind == ast::BinOpKind::Gt) {
-        return finishGtInstructions(dst, result, ctx);
+    if (ast::is_comparison(kind)) {
+        return Create_Comparison_Instruction_Sequence(kind, dst, result_reg, rhs, ctx);
     }
-    return appendInstructionsForMoveToDest(dst.value(), result, leftreg, ctx);
+    throw std::runtime_error("Unsupported operation kind");
 }
 
-[[nodiscard]] std::vector<Instruction>
-InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
-                   qa_ir::Value left, qa_ir::Variable right, Ctx &ctx) {
-    const auto leftreg = ctx.NewRegister(SizeOf(left));
-    std::vector<Instruction> result = ctx.toLocation(leftreg, left);
-    const auto rightreg = ctx.NewRegister(SizeOf(right));
-    const auto rightRegister = ctx.toLocation(rightreg, right);
-    result.insert(result.end(), rightRegister.begin(), rightRegister.end());
-    const auto arth_instruction =
-        __Create_Arth_Instruction(kind, leftreg, rightreg);
-    result.push_back(arth_instruction);
-    if (kind == ast::BinOpKind::Eq) {
-        return finishEqInstructions(dst, result, ctx);
+template<typename T>
+std::pair<Register, std::vector<Instruction>> ensureRegister(T operand, Ctx &ctx) {
+    if constexpr (qa_ir::IsIRLocation<T>) {
+        Register reg = ctx.NewRegister(SizeOf(operand));
+        std::vector<Instruction> instructions = ctx.toLocation(reg, operand);
+        return {reg, instructions};
+    } else {
+        static_assert(qa_ir::IsRegister<T>, "Operand must be a Register or IRLocation");
+        return {operand, {}};
     }
-    if (kind == ast::BinOpKind::Gt) {
-        return finishGtInstructions(dst, result, ctx);
-    }
-    return appendInstructionsForMoveToDest(dst.value(), result, leftreg, ctx);
 }
-/**
- *
- * This functions 'switches' on the type (const/temp/var) of the
- * right hand side of the binary operation
- * If you think about emitting better code, you switch on both the left and right hand side.
- * Instead of nesting, this calls overloaded functions that just pull
- * the lhs to a register and then emit the instructions to perform the operation
- * and move to the destination
- *
-*/
+
+template<typename T, typename U> requires (qa_ir::IsIRLocation<T> || qa_ir::IsRegister<T>) && (qa_ir::IsIRLocation<U> ||
+        qa_ir::IsRegister<U>)
+std::vector<Instruction> InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
+        T left, U right, Ctx &ctx) {
+    std::vector<Instruction> result;
+    auto [result_reg, left_instructions] = ensureRegister(left, ctx);
+    std::ranges::copy(left_instructions, std::back_inserter(result));
+    auto [right_reg, right_instructions] = ensureRegister(right, ctx);
+    std::ranges::copy(right_instructions, std::back_inserter(result));
+    const auto arth_instructions = Create_Arth_Instruction(kind, dst,  result_reg, right_reg, ctx);
+    std::ranges::copy(arth_instructions, std::back_inserter(result));
+    return result;
+}
+
+template<typename T>
+requires qa_ir::IsRegister<T>
+std::vector<Instruction> InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
+        T result_reg, int value, Ctx &ctx) {
+    return Create_Arth_Instruction(kind, dst, result_reg, value, ctx);
+}
+
+template<typename LeftType>
+requires qa_ir::IsIRLocation<LeftType>
+std::vector<Instruction> InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
+        LeftType left, int value, Ctx &ctx) {
+    auto [result_reg, result] = ensureRegister(left, ctx);
+    const auto rest_instructions = Create_Arth_Instruction(kind, dst, result_reg, value, ctx);
+    std::ranges::copy(rest_instructions, std::back_inserter(result));
+    return result;
+}
+
+template<typename RightType> requires (qa_ir::IsIRLocation<RightType> || qa_ir::IsRegister<RightType>)
+std::vector<Instruction> InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
+        int value, RightType right, Ctx &ctx) {
+    const target::Register result_reg = ctx.NewRegister(4);
+    std::vector<Instruction> result = {LoadI{.dst = result_reg, .value = value}};
+    auto [rhs_reg, move_to_rhs_instructions] = ensureRegister(right, ctx);
+    std::ranges::copy(move_to_rhs_instructions, std::back_inserter(result));
+    const auto rest_instructions = Create_Arth_Instruction(kind, dst, result_reg, rhs_reg, ctx);
+    std::ranges::copy(rest_instructions, std::back_inserter(result));
+    return result;
+}
+
+template<qa_ir::Integral T, qa_ir::Integral U>
+std::vector<Instruction> InstructionForArth(ast::BinOpKind kind, std::optional<target::Location> dst,
+        T left, U right, Ctx &ctx)  {
+    auto result_reg = ctx.NewRegister(4);
+    auto src_reg = ctx.NewRegister(4);
+    std::vector<Instruction> result = {LoadI{.dst = result_reg, .value = left},
+                                       LoadI{.dst = src_reg, .value = right}
+                                      };
+    const auto rest_instructions = InstructionForArth(kind, dst, result_reg, src_reg, ctx);
+    std::ranges::copy(rest_instructions, std::back_inserter(result));
+    return result;
+}
+
 [[nodiscard]] std::vector<Instruction>
 LowerArth(ast::BinOpKind kind, std::optional<qa_ir::Value> dst,
           qa_ir::Value left, qa_ir::Value right, Ctx &ctx) {
@@ -291,26 +343,16 @@ LowerArth(ast::BinOpKind kind, std::optional<qa_ir::Value> dst,
     if (dst.has_value()) {
         dest_location = ctx.AllocateNew(dst.value());
     }
-    if (std::holds_alternative<int>(right)) {
-        const int value = std::get<int>(right);
-        return InstructionForArth(kind, dest_location, left, value, ctx);
-    }
-    if (std::holds_alternative<qa_ir::Temp>(right)) {
-        const auto r = std::get<qa_ir::Temp>(right);
-        return InstructionForArth(kind, dest_location, left, r, ctx);
-    }
-    if (std::holds_alternative<qa_ir::Variable>(right)) {
-        const auto variable = std::get<qa_ir::Variable>(right);
-        return InstructionForArth(kind, dest_location, left, variable, ctx);
-    }
-    throw std::runtime_error("LowerAddInstruction not implemented");
+    auto visitor = [&](auto&& left, auto&& right) -> std::vector<Instruction> {
+        return InstructionForArth(kind, dest_location, left, right, ctx);
+    };
+    return std::visit(visitor, left, right);
 }
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunused-parameter"
 
-[[nodiscard]] std::vector<Instruction>
-LowerInstruction(qa_ir::LabelDef label, Ctx &ctx) {
+auto LowerInstruction(qa_ir::LabelDef label, Ctx &ctx) -> std::vector<Instruction> {
     return {Label{.name = label.label.name}};
 }
 
@@ -349,7 +391,7 @@ LowerInstruction(qa_ir::ConditionalJumpGreater cj, Ctx &ctx) {
                 const auto variable = std::get<qa_ir::Variable>(*it);
                 const auto variableOffset = ctx.variable_offset.at(variable.name);
                 result.push_back(
-                          Load{.dst = reg, .src = StackLocation{.offset = variableOffset}});
+                          Load{.dst = reg, .src = variableOffset});
                 result.push_back(Push{.src = reg});
                 continue;
             }
@@ -369,8 +411,7 @@ LowerInstruction(qa_ir::ConditionalJumpGreater cj, Ctx &ctx) {
     result.push_back(Call{.name = call.name, .dst = returnRegister});
     const auto move_dest_instructions =
         Register_To_Location(dest, returnRegister, &ctx);
-    result.insert(result.end(), move_dest_instructions.begin(),
-                  move_dest_instructions.end());
+    result.emplace_back(move_dest_instructions);
     return result;
 }
 
@@ -388,7 +429,7 @@ LowerInstruction(qa_ir::ConditionalJumpGreater cj, Ctx &ctx) {
     const auto variableOffset = ctx.variable_offset.at(variable.name);
     const auto reg = ctx.AllocateNewForTemp(temp);
     result.push_back(
-              Lea{.dst = reg, .src = StackLocation{.offset = variableOffset}});
+              Lea{.dst = reg, .src = variableOffset});
     return result;
 }
 
@@ -401,7 +442,7 @@ LowerInstruction(qa_ir::ConditionalJumpGreater cj, Ctx &ctx) {
     const auto depth = deref.depth;
     auto reg = ctx.NewRegister(8);
     result.push_back(
-              Load{.dst = reg, .src = StackLocation{.offset = variableOffset}});
+              Load{.dst = reg, .src = variableOffset});
     for (int i = 1; i < depth; i++) {
         const auto tempreg = ctx.NewRegister(8);
         result.push_back(IndirectLoad{.dst = tempreg, .src = reg});

@@ -12,8 +12,7 @@
 #include <stdexcept>
 
 #include "ast.hpp"
-#include "location.hpp"
-#include "operation.hpp"
+#include "qa_ir.hpp"
 #include "qa_x86.hpp"
 
 namespace qa_ir {

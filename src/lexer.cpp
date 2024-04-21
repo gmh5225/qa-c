@@ -10,6 +10,7 @@
 
 #include "lexer.hpp"
 #include "token.hpp"
+namespace lexer {
 
 static unsigned long current = 0;
 static unsigned long start = 0;
@@ -24,16 +25,16 @@ const std::unordered_map<std::string, TokType> keywords = {
     {"for", TokType::TOKEN_FOR},
 };
 
-[[nodiscard]] bool isAtEnd() {
+auto isAtEnd() -> bool {
     return current >= source.size();
 }
 
-char advance() {
+auto advance() -> char {
     assert(!isAtEnd());
     return source[current++];
 }
 
-[[nodiscard]] char peek() {
+auto peek() -> char {
     if (isAtEnd())
         return '\0';
     return source[current];
@@ -150,4 +151,5 @@ char advance() {
     }
     tokens.push_back(Token{TokType::TOKEN_FEOF, ""});
     return tokens;
+}
 }

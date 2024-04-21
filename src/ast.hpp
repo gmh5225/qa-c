@@ -24,6 +24,10 @@ enum class NodeType {
 };
 
 enum class BinOpKind { Add, Sub, Eq, Gt };
+
+[[nodiscard]] auto is_arithmetic(BinOpKind kind) -> bool;
+[[nodiscard]] auto is_comparison(BinOpKind kind) -> bool;
+
 enum class SelectionKind { If };
 struct DataType {
     std::string name;
@@ -243,6 +247,10 @@ inline std::ostream &operator<<(std::ostream &os, const Node &node) {
             os << *n << ", ";
         }
         os << "])";
+        break;
+    }
+    default: {
+        os << "Unknown(" << static_cast<int>(node.type) << ")";
         break;
     }
     }

@@ -7,6 +7,14 @@
 
 namespace ast {
 
+[[nodiscard]] auto is_arithmetic(BinOpKind kind) -> bool {
+    return kind == BinOpKind::Add || kind == BinOpKind::Sub;
+}
+
+[[nodiscard]] auto is_comparison(BinOpKind kind) -> bool {
+    return kind == BinOpKind::Eq || kind == BinOpKind::Gt;
+}
+
 std::unique_ptr<Node> makeConstInt(int value) {
     auto node = std::make_unique<Node>();
     node->type = NodeType::ConstInt;

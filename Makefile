@@ -1,7 +1,6 @@
 CC := g++
-CXXFLAGS_HARSH := -g -Wall -Wextra -Werror -Wshadow -Weffc++ -Wreorder -Wmissing-declarations -Wextra-semi -Wsign-conversion	-Wswitch-default  -Wuninitialized -Wnull-dereference -Wdouble-promotion -Wnon-virtual-dtor -pedantic -Wunused-function -Wold-style-cast -Wunused -Woverloaded-virtual -Wconversion -std=c++2b -g  
 
-CXXFLAGS := -g -Wno-missing-declarations   -std=c++2b 
+CXXFLAGS := -g -Wno-unknown-pragmas -Wno-unused-parameter -Wall -Wextra   -Wno-shadow -Wno-missing-declarations -Wextra-semi -Wsign-conversion	-Wswitch-default  -Wuninitialized -Wnull-dereference -Wdouble-promotion -Wnon-virtual-dtor -pedantic -Wunused-function -Wold-style-cast -Wunused -Woverloaded-virtual -Wconversion -std=c++2b 
 
 
 SRC_DIR := ./src

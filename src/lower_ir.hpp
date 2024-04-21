@@ -4,14 +4,14 @@
 #include <string>
 
 #include "assem.hpp"
-#include "operation.hpp"
+#include "qa_ir.hpp"
 #include "qa_x86.hpp"
 
 namespace target {
 struct Ctx {
   public:
-    std::map<std::string, int> variable_offset;
-    std::map<int, VirtualRegister> temp_register_mapping;
+    std::map<std::string, StackLocation> variable_offset = {};
+    std::map<int, VirtualRegister> temp_register_mapping = {};
     [[nodiscard]] Location AllocateNew(qa_ir::Value v);
     [[nodiscard]] Register AllocateNewForTemp(qa_ir::Temp t);
     [[nodiscard]] VirtualRegister NewRegister(int size);
@@ -27,5 +27,6 @@ struct Ctx {
 
 };
 
+[[nodiscard]] auto LowerInstruction(qa_ir::LabelDef label, Ctx &ctx) -> std::vector<Instruction>;
 [[nodiscard]] std::vector<Frame> LowerIR(const std::vector<qa_ir::Frame> &ops);
 } // namespace target

@@ -1,8 +1,8 @@
 #include "st.hpp"
 
 namespace st {
-AssignmentExpression::AssignmentExpression(Expression lhs, Expression rhs)
-    : lhs(std::move(lhs)), rhs(std::move(rhs)) {}
+AssignmentExpression::AssignmentExpression(Expression p_lhs, Expression p_rhs)
+    : lhs(std::move(p_lhs)), rhs(std::move(p_rhs)) {}
 
 AdditiveExpression::AdditiveExpression(Expression lhs, Expression rhs,
                                        AdditiveExpressionType _type)
@@ -35,9 +35,9 @@ BlockItem::BlockItem(Statement item) : item(std::move(item)) {}
 UnaryExpression::UnaryExpression(UnaryExpressionType _type, Expression p_expr)
     : type(_type), expr(std::move(p_expr)) {}
 
-FunctionCallExpression::FunctionCallExpression(std::string name,
-        std::vector<Expression> args)
-    : name(std::move(name)), args(std::move(args)) {}
+FunctionCallExpression::FunctionCallExpression(std::string p_name,
+        std::vector<Expression> p_args)
+    : name(std::move(p_name)), args(std::move(p_args)) {}
 
 ForStatement::ForStatement(ForDeclaration p_init,
                            std::optional<Expression> p_cond,

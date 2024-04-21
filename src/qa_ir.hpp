@@ -1,12 +1,27 @@
 #pragma once
 
-#include <iostream>
-#include <optional>
+#include <concepts>
+#include <ostream>
+#include <string>
 #include <variant>
 
-#include "location.hpp"
+#include "ast.hpp"
+#include "qa_x86.hpp"
 
 namespace qa_ir {
+struct Variable {
+    std::string name;
+    int version = 0;
+    int size = 0;
+};
+
+struct Temp {
+    int id;
+    int size;
+};
+
+using Value =
+    std::variant<Temp, target::HardcodedRegister, Variable, int>;
 
 struct Label {
     std::string name;
@@ -36,7 +51,7 @@ struct Sub {
 
 struct MovR {
     Value dst;
-    HardcodedRegister src;
+    target::HardcodedRegister src;
 };
 
 struct Addr {
@@ -119,5 +134,26 @@ Label get_true_label(const CondJ &condj);
 Label get_false_label(const CondJ &condj);
 
 std::ostream &operator<<(std::ostream &os, const Operation &ins);
+
+template<typename T>
+concept Integral = std::is_integral<T>::value;
+
+template<typename T>
+concept IsRegister = std::is_same<T, target::HardcodedRegister>::value ||
+                     std::is_same<T, target::VirtualRegister>::value;
+
+template<typename T>
+concept IsIRLocation = std::is_same<T, qa_ir::Temp>::value || std::is_same<T, qa_ir::Variable>::value;
+
+bool operator<(const Temp &lhs, const Temp &rhs);
+std::ostream &operator<<(std::ostream &os, const Temp &temp);
+
+bool operator<(const target::HardcodedRegister &lhs, const target::HardcodedRegister &rhs);
+std::ostream &operator<<(std::ostream &os, const target::HardcodedRegister &reg);
+
+std::ostream &operator<<(std::ostream &os, const Value &v);
+
+[[nodiscard]] int SizeOf(Value v);
+[[nodiscard]] int SizeOfWhatItPointsTo(Value v);
 
 } // namespace qa_ir
