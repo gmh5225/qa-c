@@ -11,4 +11,5 @@
 - [ ] Implement structs
 - [ ] Handle expressions in the first part of a for loop
     - [ ] Looks like `for(a; a < 5; a = a + 1)`
+- [ ] Abstract IR int type into a struct
 

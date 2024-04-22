@@ -26,14 +26,14 @@ struct Ctx {
     int counter;
     int labelCounter;
     std::map<std::string, int> variableUsage;
-    std::map<std::string, const ast::Node*> variables;
+    std::map<std::string, const ast::VariableAstNode*> variables;
 
     Temp newTemp(int size) {
         assert(size != 0);
         return Temp{counter++, size};
     }
 
-    Value AddVariable(const ast::Node* node) {
+    Value AddVariable(const ast::VariableAstNode* node) {
         auto name = node->variableName;
         variableUsage[name]++;
         variables[name] = node;
@@ -54,10 +54,10 @@ struct Ctx {
 };
 
 CondJ GenerateConditionalIR(std::vector<Operation>& ins,
-                            const std::unique_ptr<ast::Node>& condition,
+                            const std::unique_ptr<ast::AstNode>& condition,
                             Ctx& ctx);
 
 [[nodiscard]] std::vector<Frame> Produce_IR(
-    const std::vector<std::unique_ptr<ast::Node>>& nodes);
+    const std::vector<std::unique_ptr<ast::AstNode>>& nodes);
 
 }  // namespace qa_ir

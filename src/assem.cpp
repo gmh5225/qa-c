@@ -7,7 +7,7 @@
 namespace qa_ir {
 
 void MunchStmt(std::vector<Operation>& ins,
-               const std::unique_ptr<ast::Node>& node, Ctx& ctx);
+               const std::unique_ptr<ast::AstNode>& node, Ctx& ctx);
 
 Value GenerateIRForRhs(std::vector<Operation>& ins, const ast::Node* node,
                        Ctx& ctx) {
@@ -94,14 +94,15 @@ Value GenerateIRForRhs(std::vector<Operation>& ins, const ast::Node* node,
     }
 }
 void GenerateIRForReturnNode(std::vector<Operation>& ins,
-                             const std::unique_ptr<ast::Node>& node, Ctx& ctx) {
+                             const std::unique_ptr<ast::AstNode>& node,
+                             Ctx& ctx) {
     auto ret = GenerateIRForRhs(ins, node->expr.get(), ctx);
     auto ret_instruction = Ret{.value = ret};
     ins.emplace_back(ret_instruction);
 }
 
 void GenerateIRForMovNode(std::vector<Operation>& ins,
-                          const std::unique_ptr<ast::Node>& node, Ctx& ctx) {
+                          const std::unique_ptr<ast::AstNode>& node, Ctx& ctx) {
     auto src = GenerateIRForRhs(ins, node->rhs.get(), ctx);
     switch (node->lhs->type) {
         case ast::NodeType::Var: {
@@ -124,7 +125,7 @@ void GenerateIRForMovNode(std::vector<Operation>& ins,
 }
 
 void GenerateIRForForLoop(std::vector<Operation>& ins,
-                          const std::unique_ptr<ast::Node>& node, Ctx& ctx) {
+                          const std::unique_ptr<ast::AstNode>& node, Ctx& ctx) {
     // the init code
     MunchStmt(ins, node->forInit, ctx);
     // loop conditional then jump label
@@ -185,7 +186,7 @@ void GenerateIRForForLoop(std::vector<Operation>& ins,
  * then / else
  */
 CondJ GenerateConditionalIR(std::vector<Operation>& ins,
-                            const std::unique_ptr<ast::Node>& condition,
+                            const std::unique_ptr<ast::AstNode>& condition,
                             Ctx& ctx) {
     std::vector<Operation> instructions;
     auto then_label = ctx.newLabel();
@@ -214,7 +215,7 @@ CondJ GenerateConditionalIR(std::vector<Operation>& ins,
 }
 
 void GenerateIRForIf(std::vector<Operation>& ins,
-                     const std::unique_ptr<ast::Node>& node, Ctx& ctx) {
+                     const std::unique_ptr<ast::AstNode>& node, Ctx& ctx) {
     auto conditionalJump = GenerateConditionalIR(ins, node->condition, ctx);
     auto then_label = get_true_label(conditionalJump);
     auto else_label = get_false_label(conditionalJump);
@@ -238,7 +239,7 @@ void GenerateIRForIf(std::vector<Operation>& ins,
 }
 
 void MunchStmt(std::vector<Operation>& ins,
-               const std::unique_ptr<ast::Node>& node, Ctx& ctx) {
+               const std::unique_ptr<ast::AstNode>& node, Ctx& ctx) {
     switch (node->type) {
         case ast::NodeType::Return: {
             GenerateIRForReturnNode(ins, node, ctx);
@@ -268,7 +269,7 @@ void MunchStmt(std::vector<Operation>& ins,
 }
 
 [[nodiscard]] std::vector<Frame> Produce_IR(
-    const std::vector<std::unique_ptr<ast::Node>>& nodes) {
+    const std::vector<std::unique_ptr<ast::AstNode>>& nodes) {
     std::vector<Frame> frames;
     for (const auto& node : nodes) {
         auto ctx = Ctx{.counter = 0,
