@@ -1,0 +1,41 @@
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install GCC 13
+        run: |
+          sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+          sudo apt update
+          sudo apt install g++-13
+          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-13 100
+          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-13 100
+          sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/g++-13 100
+        
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget software-properties-common lsb-release
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          sudo add-apt-repository "deb http://apt.llvm.org/$(lsb_release -sc)/ llvm-toolchain-$(lsb_release -sc)-16 main"
+          sudo apt-get update
+          sudo apt-get install -y clang-format-16
+      
+      - name: Install NASM
+        run: sudo apt-get update && sudo apt-get install -y nasm
+      
+      - name: Check Formatting
+        run: ./scripts/check_format.sh
+
+      - name: Build Project
+        run: ./scripts/build.sh
+      
+      - name: Test Project
+        run: ./scripts/test.sh

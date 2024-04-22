@@ -2,21 +2,36 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "driver.hpp"
+#include <string>
 
-int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <filename>\n", argv[0]);
+#include "../include/driver.hpp"
+
+int main(int argc, char* argv[]) {
+    if (argc <= 1) {
+        fprintf(stderr, "Usage: %s -o <outputfile> <inputfile>\n", argv[0]);
         return EXIT_FAILURE;
     }
+
     int opt;
-    while ((opt = getopt(argc, argv, "")) != -1) {
+    std::string outfile = "test.asm";
+
+    while ((opt = getopt(argc, argv, "o:")) != -1) {
         switch (opt) {
-        default:
-            fprintf(stderr, "Usage: %s <filename>\n", argv[0]);
-            exit(EXIT_FAILURE);
+            case 'o':
+                outfile = optarg;
+                break;
+            default:
+                fprintf(stderr, "Usage: %s -o <outputfile> <inputfile>\n",
+                        argv[0]);
+                return EXIT_FAILURE;
         }
     }
-    char *sourcefile = argv[1];
-    return runfile(sourcefile);
+
+    if (optind >= argc) {
+        fprintf(stderr, "Expected input file after options\n");
+        return EXIT_FAILURE;
+    }
+
+    char* sourcefile = argv[optind];
+    return runfile(sourcefile, outfile);
 }
