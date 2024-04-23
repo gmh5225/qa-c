@@ -12,4 +12,5 @@
 - [ ] Handle expressions in the first part of a for loop
     - [ ] Looks like `for(a; a < 5; a = a + 1)`
 - [ ] Abstract IR int type into a struct
-
+- [ ] Add a direct IR instruction for adding to a stack location
+- [ ] Add a direct IR instruction for subtracting from a stack location

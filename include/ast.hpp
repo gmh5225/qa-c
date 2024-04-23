@@ -66,6 +66,7 @@ struct FrameParam {
 class AstNode {
    public:
     virtual ~AstNode() = default;
+    virtual std::string toString() const { return "AstNode"; }
     virtual const ast::BinOpKind* get_bin_op() const { return nullptr; }
 };
 
@@ -166,11 +167,18 @@ class IfNode : public AstNode {
    public:
     std::unique_ptr<AstNode> condition;
     std::vector<std::unique_ptr<AstNode>> then;
-    std::vector<std::unique_ptr<AstNode>> else_;
+    std::optional<std::vector<std::unique_ptr<AstNode>>> else_;
 
     IfNode(std::unique_ptr<AstNode> condition,
            std::vector<std::unique_ptr<AstNode>> then,
            std::vector<std::unique_ptr<AstNode>> else_)
+        : condition(std::move(condition)),
+          then(std::move(then)),
+          else_(std::move(else_)) {}
+
+    IfNode(std::unique_ptr<AstNode> condition,
+           std::vector<std::unique_ptr<AstNode>> then,
+           std::optional<std::vector<std::unique_ptr<AstNode>>> else_)
         : condition(std::move(condition)),
           then(std::move(then)),
           else_(std::move(else_)) {}

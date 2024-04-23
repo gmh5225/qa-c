@@ -129,7 +129,11 @@ auto translate(const std::unique_ptr<st::FunctionCallExpression>& expr,
         auto e = translate(arg, ctx);
         args.push_back(std::move(e));
     }
-    return std::make_unique<FunctionCallAstNode>(expr->name, std::move(args));
+
+    const auto faux_return_type = ast::DataType("int", 4, nullptr);
+
+    return std::make_unique<FunctionCallAstNode>(expr->name, std::move(args),
+                                                 faux_return_type);
 }
 
 // expression
@@ -173,7 +177,7 @@ auto translate(const std::unique_ptr<st::SelectionStatement>& stmt, Ctx& ctx)
                                             std::move(then), std::move(else_));
         }
         return std::make_unique<IfNode>(std::move(condition), std::move(then),
-                                        nullptr);
+                                        std::nullopt);
     }
 }
 

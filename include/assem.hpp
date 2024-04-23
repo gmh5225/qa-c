@@ -53,10 +53,6 @@ struct Ctx {
     }
 };
 
-CondJ GenerateConditionalIR(std::vector<Operation>& ins,
-                            const std::unique_ptr<ast::AstNode>& condition,
-                            Ctx& ctx);
-
 [[nodiscard]] std::vector<Frame> Produce_IR(
     const std::vector<std::unique_ptr<ast::AstNode>>& nodes);
 
